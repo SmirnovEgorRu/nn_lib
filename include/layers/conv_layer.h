@@ -159,8 +159,8 @@ inline __m512i permutexvar_epi8(__m512i idx, __m512i x) {
 inline __m512i _mm512_loadu_permutexvar_epi8_2idx(const uint8_t* ptr,  const __m512i idx1, const  __m512i idx2) {
     __m512i x16 = _mm512_cvtepu8_epi16(_mm256_loadu_epi8(ptr));
 
-    __m512i lr = _mm512_permutexvar_epi16(x16, idx1);
-    __m512i hr = _mm512_permutexvar_epi16(x16, idx2);
+    __m512i lr = _mm512_permutexvar_epi16(idx1, x16);
+    __m512i hr = _mm512_permutexvar_epi16(idx2, x16);
 
     __m512i res;
     res = _mm512_inserti64x4(res, _mm512_cvtepi16_epi8(lr), 0);
@@ -207,48 +207,16 @@ void _mm512_print_epi8(__m512i x, std::string str = "") {
 }
 
 
+inline __m512i _mm512_loadu_permutexvar_epi8(const uint8_t* ptr, __m512i idx) {
+    __m512i x = _mm512_loadu_epi8(ptr);
+    return permutexvar_epi8(idx, x);
+}
+
 
 
 void vnni_conv_common(const uint8_t* frame, const int8_t* kernel, int32_t* res, int in1, int in2, int _k1, int _k2) {
     int out1 = in1 - _k1 + 1;
     int out2 = in2 - _k2 + 1;
-
-    // std::fill_n(res, out1 * out2, 0);
-
-    // const __m512i idx = _mm512_setr_epi8(0,   1,  2,  3,  // 1
-    //                               1,   2,  3,  4,  // 2
-    //                               2,   3,  4,  5,  // 3
-    //                               3,   4,  5,  6,  // 4
-    //                               4,   5,  6,  7,  // 5
-    //                               5,   6,  7,  8,  // 6
-    //                               6,   7,  8,  9,  // 7
-    //                               7,   8,  9, 10,  // 8
-    //                               8,   9, 10, 11,  // 9
-    //                               9,  10, 11, 12,  // 10
-    //                               10, 11, 12, 13,  // 11
-    //                               11, 12, 13, 14,  // 12
-    //                               12, 13, 14, 15,  // 13
-    //                               13, 14, 15, 16, // 14
-    //                               14, 15, 16, 17, // 15
-    //                               15, 16, 17, 18); //16
-
-    const __m512i idx = _mm512_set_epi8(18, 17, 16, 15,
-                                        17, 16, 15, 14,
-                                        16, 15, 14, 13,
-                                        15, 14, 13, 12,
-                                        14, 13, 12, 11,
-                                        13, 12, 11, 10,
-                                        12, 11, 10,  9,
-                                        11, 10,  9,  8,
-                                        10,  9,  8,  7,
-                                         9,  8,  7,  6,
-                                         8,  7,  6,  5,
-                                         7, 6, 5,4,
-                                         6,5,4,3,
-                                         5,4,3,2,
-                                         4,3,2,1,
-                                         3,2,1,0);
-
 
 
 const __m512i idx1 = _mm512_set_epi16( 10,  9,  8,  7, // 7
@@ -260,7 +228,6 @@ const __m512i idx1 = _mm512_set_epi16( 10,  9,  8,  7, // 7
                                          4,3,2,1,  // 1
                                          3,2,1,0); // 0
 
-
 const __m512i idx2 =   _mm512_set_epi16(18, 17, 16, 15, // 15
      17, 16, 15, 14, // 14
      16, 15, 14, 13, // 13
@@ -269,7 +236,6 @@ const __m512i idx2 =   _mm512_set_epi16(18, 17, 16, 15, // 15
      13, 12, 11, 10, // 10
      12, 11, 10,  9, // 9
      11, 10,  9,  8); // 8
-
 
 
     int n16 = out2 / 16;
@@ -288,11 +254,6 @@ const __m512i idx2 =   _mm512_set_epi16(18, 17, 16, 15, // 15
         offset_for_tail = 0xFFFFFF;
     }
 
-
-
-    // __m512i x = _mm256_loadu_epi8(frame + (irow + kk1) * in2 + i + in16*16);
-    //x = permutexvar_epi8(idx, x);
-
     for(int irow = 0; irow < out1; ++irow) {
         for(int in16 = 0; in16 < n16; ++in16) {
             int32_t* p = res + irow * out2 + in16*16;
@@ -307,7 +268,6 @@ const __m512i idx2 =   _mm512_set_epi16(18, 17, 16, 15, // 15
                 }
                 if (tail_k) {
                     __m512i x = _mm512_loadu_permutexvar_epi8_2idx(frame + (irow + kk1) * in2 + i + in16*16, idx1, idx2);
-
                     int32_t k32 = *((int32_t*)(kernel + kk1*_k2 + i)) & offset_for_tail;
                      __m512i k = _mm512_set1_epi32(k32);
                     r = dpbusd(r, x, k);
@@ -317,7 +277,8 @@ const __m512i idx2 =   _mm512_set_epi16(18, 17, 16, 15, // 15
         }
         if (tail_out) {
             int32_t* p = res + irow * out2 + (n16)*16;
-            __m512i r = _mm512_set1_epi32(0);// = _mm512_loadu_epi32(p);
+            __m512i r = _mm512_set1_epi32(0);
+
             for(int kk1 = 0; kk1 < _k1; kk1++) {
                 int i = 0;
                 for(int j = 0; j < k4; ++j, i+=4) {
@@ -335,7 +296,95 @@ const __m512i idx2 =   _mm512_set_epi16(18, 17, 16, 15, // 15
             _mm512_mask_storeu_epi32(p, mask_tail_out, r);
         }
     }
-    // free(buff);
+}
+
+template<int _k2, int k4, int tail_k>
+void vnni_conv_common_jit(const uint8_t* frame, const int8_t* kernel, int32_t* res, int in1, int in2, int _k1) {
+    int out1 = in1 - _k1 + 1;
+    int out2 = in2 - _k2 + 1;
+
+
+const __m512i idx1 = _mm512_set_epi16( 10,  9,  8,  7, // 7
+                                         9,  8,  7,  6, // 6
+                                         8,  7,  6,  5, // 5
+                                         7, 6, 5,4, // 4
+                                         6,5,4,3,  // 3
+                                         5,4,3,2,  // 2
+                                         4,3,2,1,  // 1
+                                         3,2,1,0); // 0
+
+const __m512i idx2 =   _mm512_set_epi16(18, 17, 16, 15, // 15
+     17, 16, 15, 14, // 14
+     16, 15, 14, 13, // 13
+     15, 14, 13, 12, // 12
+     14, 13, 12, 11, // 11
+     13, 12, 11, 10, // 10
+     12, 11, 10,  9, // 9
+     11, 10,  9,  8); // 8
+
+
+    int n16 = out2 / 16;
+    int tail_out = out2 & 0xF;
+    const __mmask16 mask_tail_out = 0xFFFF >> (16-tail_out);
+
+    // int k4 = _k2 / 4;
+    // int tail_k = _k2 & 3;
+
+    int32_t offset_for_tail(0);
+    if(tail_k == 1) {
+        offset_for_tail = 0xFF;
+    } else if (tail_k == 2) {
+       offset_for_tail = 0xFFFF;
+    } else {
+        offset_for_tail = 0xFFFFFF;
+    }
+
+    for(int irow = 0; irow < out1; ++irow) {
+        for(int in16 = 0; in16 < n16; ++in16) {
+            int32_t* p = res + irow * out2 + in16*16;
+            __m512i r = _mm512_set1_epi32(0);
+
+            for(int kk1 = 0; kk1 < _k1; kk1++) {
+                int i = 0;
+                #pragma unroll(k4)
+                for(int j = 0; j < k4; ++j) {
+                    __m512i x = _mm512_loadu_permutexvar_epi8_2idx(frame + (irow + kk1) * in2 + i + in16*16, idx1, idx2);
+                    __m512i k = _mm512_set1_epi32(*((int32_t*)(kernel + kk1*_k2 + i))); // broadcast [4 x 8bit] to 512bit register
+                    r = dpbusd(r, x, k);
+                    i+=4;
+                }
+                if (tail_k) {
+                    __m512i x = _mm512_loadu_permutexvar_epi8_2idx(frame + (irow + kk1) * in2 + i + in16*16, idx1, idx2);
+                    int32_t k32 = *((int32_t*)(kernel + kk1*_k2 + i)) & offset_for_tail;
+                     __m512i k = _mm512_set1_epi32(k32);
+                    r = dpbusd(r, x, k);
+                }
+            }
+            _mm512_storeu_epi32(p, r);
+        }
+        if (tail_out) {
+            int32_t* p = res + irow * out2 + (n16)*16;
+            __m512i r = _mm512_set1_epi32(0);
+
+            for(int kk1 = 0; kk1 < _k1; kk1++) {
+                int i = 0;
+                #pragma unroll(k4)
+                for(int j = 0; j < k4; ++j) {
+                    __m512i x = _mm512_loadu_permutexvar_epi8_2idx(frame + (irow + kk1) * in2 + i + n16*16, idx1, idx2);
+                    __m512i k = _mm512_set1_epi32(*((int32_t*)(kernel + kk1*_k2 + i))); // broadcast [4 x 8bit] to 512bit register
+                    r = dpbusd(r, x, k);
+                    i+=4;
+                }
+                if (tail_k) {
+                    __m512i x = _mm512_loadu_permutexvar_epi8_2idx(frame + (irow + kk1) * in2 + i + n16*16, idx1, idx2);
+                    int32_t k32 = *((int32_t*)(kernel + kk1*_k2 + i)) & offset_for_tail;
+                     __m512i k = _mm512_set1_epi32(k32);
+                    r = dpbusd(r, x, k);
+                }
+            }
+            _mm512_mask_storeu_epi32(p, mask_tail_out, r);
+        }
+    }
 }
 
 void vnni_conv_k1_1(const uint8_t* frame, const int8_t* kernel, int32_t* res, int in1, int in2, int _k1, int _k2) {
@@ -578,12 +627,38 @@ const __m512i idx2 =   _mm512_set_epi16(18, 17, 16, 15, // 15
 
 
 void vnni_conv(const uint8_t* frame, const int8_t* kernel, int32_t* res, int in1, int in2, int _k1, int _k2) {
-    int k4 = _k2 / 4;
-    int tail_k = _k2 & 3;
+    // int k4 = _k2 / 4;
+    // int tail_k = _k2 & 3;
 
-    if(k4 == 1 && tail_k) vnni_conv_k1_1(frame, kernel, res, in1, in2, _k1, _k2);
-    else if(k4 == 0 && tail_k) vnni_conv_k0_1(frame, kernel, res, in1, in2, _k1, _k2);
-    else vnni_conv_common(frame, kernel, res, in1, in2, _k1, _k2);
+    // if(k4 == 1 && tail_k) vnni_conv_k1_1(frame, kernel, res, in1, in2, _k1, _k2);
+    // else if(k4 == 0 && tail_k) vnni_conv_k0_1(frame, kernel, res, in1, in2, _k1, _k2);
+    // else vnni_conv_common(frame, kernel, res, in1, in2, _k1, _k2);
+
+
+    switch(_k2) {
+        case 4:
+            vnni_conv_common_jit<4, 1, 0>(frame, kernel, res, in1, in2, _k1);
+            break;
+        case 5:
+            vnni_conv_common_jit<5, 1, 1>(frame, kernel, res, in1, in2, _k1);
+            break;
+        case 6:
+            vnni_conv_common_jit<6, 1, 2>(frame, kernel, res, in1, in2, _k1);
+            break;
+        case 7:
+            vnni_conv_common_jit<7, 1, 3>(frame, kernel, res, in1, in2, _k1);
+            break;
+        case 8:
+            vnni_conv_common_jit<8, 2, 0>(frame, kernel, res, in1, in2, _k1);
+            break;
+        default:
+            vnni_conv_common(frame, kernel, res, in1, in2, _k1, _k2);
+            break;
+    };
+
+
+
+    // vnni_conv_common(frame, kernel, res, in1, in2, _k1, _k2);
 }
 
 void _conv_blocking(const float* frame, const float* kernel, float* res, size_t in1, size_t in2, size_t _k1, size_t _k2) {

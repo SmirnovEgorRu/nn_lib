@@ -435,10 +435,10 @@ double conv_bench_float_avx512(int d1, int d2, int k1, int k2, int out1, int out
 
 
 void running_conv_bench() {
-    std::vector<size_t> d1_vec({5, 16, 17, 28, 32, 37, 64, 77, 128});
-    std::vector<size_t> d2_vec({5, 16, 17, 28, 32, 37, 64, 77, 128});
-    std::vector<size_t> k1_vec({2, 3, 4, 5, 7});
-    std::vector<size_t> k2_vec({2, 3, 4, 5, 7});
+    std::vector<size_t> d1_vec({14, 16, 17, 20, 28, 32, 37, 64, 77, 128});
+    std::vector<size_t> d2_vec({14, 16, 17, 20, 28, 32, 37, 64, 77, 128});
+    std::vector<size_t> k1_vec({3, 4, 5, 7, 8});
+    std::vector<size_t> k2_vec({3, 4, 5, 7, 8});
 
     for(size_t ipk = 0; ipk < k1_vec.size(); ++ipk) {
         for(size_t ip = 0; ip < d1_vec.size(); ++ip) {
@@ -467,13 +467,10 @@ void running_conv_bench() {
             printf("CPE: %4zu x %4zu, %4zu x %4zu | %7.3f %7.3f | %7.3f %7.3f | %7.3f %7.3f %7.3f\n", d1, d2, k1, k2, t1, t2, t3, t4, t1/t2, t1/t3, t1/t4);
         }
     }
-
-
 }
 
 
 void test_convolution_vnni() {
-    printf("test_convolution_vnni\n");
     size_t batchSize = 1;
 
     std::vector<size_t> d1_vec({5, 16, 17, 28, 32, 37, 64, 77, 128});
@@ -520,7 +517,7 @@ void test_convolution_vnni() {
             // std::fill(res2.begin(), res2.end(), 0.0f);
 
             std::vector<size_t> cc;
-            size_t N_REPEAT = 1000;
+            size_t N_REPEAT = 1;
             for(size_t i = 0; i < N_REPEAT; ++i) {
                 size_t c1 = _rdtsc();
                 _conv_simple<uint8_t, int16_t, int8_t, int16_t, int32_t>(data.data(), kernel.data(), res1.data(), d1, d2, k1, k2);
@@ -553,21 +550,20 @@ void test_convolution_vnni() {
             float cpe1 = float(c1)/(k1*k2*out1*out2);
             float cpe2 = float(c2)/(k1*k2*out1*out2);
 
-            printf("CPE: %4zu x %4zu, %4zu x %4zu | %7.3f %7.3f | %7.3f\n", d1, d2, k1, k2, cpe1, cpe2, cpe1 / cpe2);
 
             bool equal = std::equal(res1.begin(), res1.end(), res2.begin(), [](float r1, float r2) {
                 return std::isfinite(r1) && std::isfinite(r2) && std::abs(r1 - r2) < 0.001;
             });
             if (!equal) {
                 n_executed_tests++;
-                printf("FAILED!\n");
+                printf("FAILED!: %4zu x %4zu, %4zu x %4zu | %7.3f %7.3f | %7.3f\n", d1, d2, k1, k2, cpe1, cpe2, cpe1 / cpe2);
 
                 // printArr(data.data(), d1, d2, "x");
                 // printArr(kernel.data(), k1, k2, "w");
 
-                // printArr(res1.data(), out1, out2, "ref");
-                // printArr(res2.data(), out1, out2, "avx");
-                // return;
+                printArr(res1.data(), out1, out2, "ref");
+                printArr(res2.data(), out1, out2, "avx");
+                return;
             } else {
                 n_executed_tests++;
                 // printArr(res1.data(), out1, out2, "ref");
@@ -632,7 +628,7 @@ int main(int argc, char* argv[]) {
         nEpoch = std::atoi(argv[2]);
     }
     // mnist_nn_conv<float>(batchSize, nEpoch);
-
+    test_convolution_vnni();
     running_conv_bench();
 
     // test_dpbusd();
