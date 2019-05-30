@@ -10,9 +10,13 @@ TBBROOT="/export/users/cache/tbb/lnx/2017.2.132/tbb"
 DAALROOT="/nfs/inn/proj/numerics1/Users/egorsmir/daal/daal_versions/daal_2019u4/__release_lnx/daal/lib/intel64_lin/"
 OPTIONS="-g -O3 -Werror -std=c++17"
 if [ "${1}" == "skx" ];then
-    OPTIONS="${OPTIONS} -xCOMMON-AVX512 -DAVX512"
-else # AVX-2
-    OPTIONS="${OPTIONS} -xCORE-AVX2"
+    OPTIONS="${OPTIONS} -xCOMMON-AVX512 -D__AVX512"
+else
+    if [ "${1}" == "clx" ];then
+        OPTIONS="${OPTIONS} -xCOMMON-AVX512 -D__AVX512 -D__VNNI"
+    else # AVX-2
+        OPTIONS="${OPTIONS} -xCORE-AVX2"
+    fi
 fi
 
 # INCLUDES=""

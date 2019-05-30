@@ -182,6 +182,41 @@ public:
         return layers[layers.size()-1]->getOutput();
     }
 
+    void score(Tensor<InType>& data, Tensor<InType>& y) {
+        layers[0]->forward(data);
+        for(size_t i = 1; i < layers.size(); ++i) {
+            layers[i]->forward(layers[i]->prev->getOutput());
+        }
+
+        size_t nSamples = data.getNBatches();
+
+        auto [gd1, gd2] = y.getFrameSize();
+        size_t yFrameSize = gd1 * gd2;
+
+        Tensor<InType>& re = layers[layers.size()-1]->getOutput();
+
+        InType* gr = y.data();
+        InType* r  = re.data();
+            double count = 0;
+        #pragma omp parallel for reduction(+:count)
+        for(size_t i = 0; i < nSamples*yFrameSize; ++i) {
+                // printf("%f %f\n", grth.data()[i], re.data()[i]);
+            count += (gr[i] - r[i]) * (gr[i] - r[i]);
+        }
+
+        size_t countAcc = 0;
+        for(size_t i = 0; i < nSamples; ++i) {
+            auto iter1 = std::max_element(re.data() + yFrameSize*i, re.data() + yFrameSize*i + yFrameSize);
+            auto iter2 = std::max_element(y.data() + yFrameSize*i, y.data() + yFrameSize*i + yFrameSize);
+
+            if ((iter1-(re.data() + yFrameSize*i)) == (iter2-(y.data() + yFrameSize*i))) {
+                countAcc++;
+            }
+        }
+        double t3 = omp_get_wtime();
+        printf("Score = RMSE = %f | Acc = %f\n", std::sqrt(double(count)/double(nSamples)), double(countAcc)/double(nSamples));
+    }
+
 protected:
     std::vector<LayerBase<InType, OutType>*> layers;
     // std::vector<LayerBase<InType, OutType>*> last_layers;

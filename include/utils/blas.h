@@ -83,4 +83,17 @@ void transpose(const T* in, T* out, size_t n, size_t m) {
     }
 }
 
+template<typename T>
+void NnExp(size_t n, T* in, T* out) {
+    ASSERT_TRUE(0);
+}
+
+void NnExp(size_t n, float* in, float* out) {
+    vsExp(n, in, out);
+}
+
+void NnExp(size_t n, double* in, double* out) {
+    vdExp(n, in, out);
+}
+
 #endif // #ifndef __BLAS_H__

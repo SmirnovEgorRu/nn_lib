@@ -1,6 +1,6 @@
 
-#ifndef __SIGMOID_LAYER_H__
-#define __SIGMOID_LAYER_H__
+#ifndef __SOFTMAX_LAYER_H__
+#define __SOFTMAX_LAYER_H__
 
 #include <cmath>
 #include <omp.h>
@@ -9,7 +9,7 @@
 
 
 template<typename InType, typename OutType>
-class Sigmoid: public LayerBase<InType, OutType> {
+class SoftMaxLayer: public LayerBase<InType, OutType> {
     using LayerBase<InType, OutType>::_weights;
     using LayerBase<InType, OutType>::_biases;
     using LayerBase<InType, OutType>::_weightsDerivatives;
@@ -17,7 +17,15 @@ class Sigmoid: public LayerBase<InType, OutType> {
     using LayerBase<InType, OutType>::_output;
     using LayerBase<InType, OutType>::_gradient;
 public:
-    Sigmoid() {
+    SoftMaxLayer() {
+    }
+
+    InType sigm(InType val) {
+        if (val >= 0.0f) {
+            return 1.0f / (1.0f + std::exp(-val));
+        } else {
+            return std::exp(val) / (1 + std::exp(val));
+        }
     }
 
     virtual void forward(const Tensor<InType>& data) {
@@ -27,28 +35,26 @@ public:
         const InType* x = data.data();
         InType* res = _output.data();
 
+        size_t nBatches = data.getNBatches();
+
         size_t size = data.size();
 
-        size_t ntr = std::min<size_t>(size / 512, omp_get_max_threads());
-        #pragma omp parallel if(ntr>1) num_threads(ntr)
-        {
-            int tid = omp_get_thread_num();
-            int nt = omp_get_num_threads();
+        for(size_t i = 0; i < size; ++i) {
+            res[i] = x[i];
+            if (res[i] < -75.f)
+                res[i] = -75.f;
+            if (res[i] > 75.0f)
+                res[i] = 75.f;
+        }
+        NnExp(size, res, res);
 
-            int blockSize = size / nt + !!(size % nt);
-            int iStart = tid * blockSize;
-            int iEnd   = (tid+1) * blockSize > size ? size : (tid+1) * blockSize;
-
-            for(size_t i = iStart; i < iEnd; ++i) {
-                res[i] = -x[i];
-                if (res[i] < -75.f)
-                    res[i] = -75.f;
-                if (res[i] > 75.0f)
-                    res[i] = 75.f;
+        for(size_t j = 0; j < nBatches; ++j) {
+            InType sum = 0;
+            for(size_t i = (in1*in2)*j; i < (in1*in2)*(j+1); ++i) {
+                sum += res[i];
             }
-            NnExp(iEnd - iStart, res + iStart, res + iStart);
-            for(size_t i = iStart; i < iEnd; ++i) {
-                res[i] = 1.0f / (1.0f + res[i]);
+            for(size_t i = (in1*in2)*j; i < (in1*in2)*(j+1); ++i) {
+                res[i] = res[i] / sum;
             }
         }
 
@@ -81,4 +87,4 @@ protected:
     const Tensor<InType>* _data;
 };
 
-#endif // __SIGMOID_LAYER_H__
+#endif // __SOFTMAX_LAYER_H__
