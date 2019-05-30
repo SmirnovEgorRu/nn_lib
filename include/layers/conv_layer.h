@@ -152,6 +152,19 @@ inline __m512i permutexvar_epi8(__m512i idx, __m512i x) {
 #endif
 }
 
+inline __m512i _mm512_loadu_permutexvar_epi8_2idx(const uint8_t* ptr,  const __m512i idx1, const  __m512i idx2) {
+    __m512i x16 = _mm512_cvtepu8_epi16(_mm256_loadu_epi8(ptr));
+
+    __m512i lr = _mm512_permutexvar_epi16(x16, idx1);
+    __m512i hr = _mm512_permutexvar_epi16(x16, idx2);
+
+    __m512i res;
+    res = _mm512_inserti64x4(res, _mm512_cvtepi16_epi8(lr), 0);
+    res = _mm512_inserti64x4(res, _mm512_cvtepi16_epi8(hr), 1);
+
+    return res;
+}
+
 
 void _mm512_print_epi32(__m512i x, std::string str = "") {
     printf("%s", str.c_str());
@@ -193,7 +206,7 @@ void vnni_conv(const uint8_t* frame, const int8_t* kernel, int32_t* res, int in1
     int out1 = in1 - _k1 + 1;
     int out2 = in2 - _k2 + 1;
 
-    std::fill_n(res, out1 * out2, 0);
+    // std::fill_n(res, out1 * out2, 0);
 
     // const __m512i idx = _mm512_setr_epi8(0,   1,  2,  3,  // 1
     //                               1,   2,  3,  4,  // 2
@@ -229,6 +242,29 @@ void vnni_conv(const uint8_t* frame, const int8_t* kernel, int32_t* res, int in1
                                          4,3,2,1,
                                          3,2,1,0);
 
+
+
+const __m512i idx1 = _mm512_set_epi16( 10,  9,  8,  7, // 7
+                                         9,  8,  7,  6, // 6
+                                         8,  7,  6,  5, // 5
+                                         7, 6, 5,4, // 4
+                                         6,5,4,3,  // 3
+                                         5,4,3,2,  // 2
+                                         4,3,2,1,  // 1
+                                         3,2,1,0); // 0
+
+
+const __m512i idx2 =   _mm512_set_epi16(18, 17, 16, 15, // 15
+     17, 16, 15, 14, // 14
+     16, 15, 14, 13, // 13
+     15, 14, 13, 12, // 12
+     14, 13, 12, 11, // 11
+     13, 12, 11, 10, // 10
+     12, 11, 10,  9, // 9
+     11, 10,  9,  8); // 8
+
+
+
     int n16 = out2 / 16;
     int tail_out = out2 & 0xF;
     // const __mmask16 mask_tail_out = 0xFFFF >> (16-tail_out);
@@ -255,19 +291,23 @@ void vnni_conv(const uint8_t* frame, const int8_t* kernel, int32_t* res, int in1
     for(int irow = 0; irow < out1; ++irow) {
         for(int in16 = 0; in16 < n16; ++in16) {
             int32_t* p = res + irow * out2 + in16*16;
-            __m512i r = _mm512_loadu_epi32(p);
+            __m512i r = _mm512_set1_epi32(0);// = _mm512_loadu_epi32(p);
 
             for(int kk1 = 0; kk1 < _k1; kk1++) {
                 int i = 0;
                 for(int j = 0; j < k4; ++j, i+=4) {
-                    __m512i x = _mm512_loadu_epi8(frame + (irow + kk1) * in2 + i + in16*16);
-                    x = permutexvar_epi8(idx, x);
+                    // __m512i x = _mm256_loadu_epi8(frame + (irow + kk1) * in2 + i + in16*16);
+                    //x = permutexvar_epi8(idx, x);
+                    __m512i x = _mm512_loadu_permutexvar_epi8_2idx(frame + (irow + kk1) * in2 + i + in16*16, idx1, idx2);
+
                     __m512i k = _mm512_set1_epi32(*((int32_t*)(kernel + kk1*_k2 + i))); // broadcast [4 x 8bit] to 512bit register
                     r = dpbusd(r, x, k);
                 }
                 if (tail_k) {
-                    __m512i x = _mm512_loadu_epi8(frame + (irow + kk1) * in2 + i + in16*16);
-                    x = permutexvar_epi8(idx, x);
+                    // __m512i x = _mm512_loadu_epi8(frame + (irow + kk1) * in2 + i + in16*16);
+                    // x = permutexvar_epi8(idx, x);
+
+                    __m512i x = _mm512_loadu_permutexvar_epi8_2idx(frame + (irow + kk1) * in2 + i + in16*16, idx1, idx2);
 
                     int32_t k32 = *((int32_t*)(kernel + kk1*_k2 + i)) & offset_for_tail;
                      __m512i k = _mm512_set1_epi32(k32);
@@ -278,18 +318,23 @@ void vnni_conv(const uint8_t* frame, const int8_t* kernel, int32_t* res, int in1
         }
         if (tail_out) {
             int32_t* p = res + irow * out2 + (n16)*16;
-            __m512i r = _mm512_maskz_loadu_epi32(mask_tail_out, p);
+            __m512i r = _mm512_set1_epi32(0);// = _mm512_loadu_epi32(p);
             for(int kk1 = 0; kk1 < _k1; kk1++) {
                 int i = 0;
                 for(int j = 0; j < k4; ++j, i+=4) {
-                    __m512i x = _mm512_loadu_epi8(frame + (irow + kk1) * in2 + i + n16*16);
-                    x = permutexvar_epi8(idx, x);
+                    // __m512i x = _mm512_loadu_epi8(frame + (irow + kk1) * in2 + i + n16*16);
+                    // x = permutexvar_epi8(idx, x);
+
+                    __m512i x = _mm512_loadu_permutexvar_epi8_2idx(frame + (irow + kk1) * in2 + i + n16*16, idx1, idx2);
                     __m512i k = _mm512_set1_epi32(*((int32_t*)(kernel + kk1*_k2 + i))); // broadcast [4 x 8bit] to 512bit register
                     r = dpbusd(r, x, k);
                 }
                 if (tail_k) {
-                    __m512i x = _mm512_loadu_epi8(frame + (irow + kk1) * in2 + i + n16*16);
-                    x = permutexvar_epi8(idx, x);
+                    // __m512i x = _mm512_loadu_epi8(frame + (irow + kk1) * in2 + i + n16*16);
+                    // x = permutexvar_epi8(idx, x);
+
+                    __m512i x = _mm512_loadu_permutexvar_epi8_2idx(frame + (irow + kk1) * in2 + i + n16*16, idx1, idx2);
+
                     int32_t k32 = *((int32_t*)(kernel + kk1*_k2 + i)) & offset_for_tail;
                      __m512i k = _mm512_set1_epi32(k32);
                     r = dpbusd(r, x, k);
