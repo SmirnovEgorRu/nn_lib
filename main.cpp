@@ -347,10 +347,10 @@ void test_convolution_vnni() {
     printf("test_convolution_vnni\n");
     size_t batchSize = 1;
 
-    std::vector<size_t> d1_vec({17});
-    std::vector<size_t> d2_vec({17});
-    std::vector<size_t> k1_vec({7});
-    std::vector<size_t> k2_vec({7});
+    // std::vector<size_t> d1_vec({17});
+    // std::vector<size_t> d2_vec({17});
+    // std::vector<size_t> k1_vec({7});
+    // std::vector<size_t> k2_vec({7});
 
     // std::vector<size_t> d1_vec({2});
     // std::vector<size_t> k1_vec({2});
@@ -358,10 +358,10 @@ void test_convolution_vnni() {
     // std::vector<size_t> d2_vec({1});
     // std::vector<size_t> k2_vec({1});
 
-    // std::vector<size_t> d1_vec({5, 16, 17, 28, 32, 37, 64, 77, 128});
-    // std::vector<size_t> d2_vec({5, 16, 17, 28, 32, 37, 64, 77, 128});
-    // std::vector<size_t> k1_vec({2, 3, 4, 5, 7});
-    // std::vector<size_t> k2_vec({2, 3, 4, 5, 7});
+    std::vector<size_t> d1_vec({5, 16, 17, 28, 32, 37, 64, 77, 128});
+    std::vector<size_t> d2_vec({5, 16, 17, 28, 32, 37, 64, 77, 128});
+    std::vector<size_t> k1_vec({2, 3, 4, 5, 7});
+    std::vector<size_t> k2_vec({2, 3, 4, 5, 7});
 
 
     // std::vector<size_t> d1_vec({5, 16, 17, 28, 32, 37, 64, 77, 128});
@@ -408,7 +408,7 @@ void test_convolution_vnni() {
             // std::fill(res2.begin(), res2.end(), 0.0f);
 
             std::vector<size_t> cc;
-            size_t N_REPEAT = 1;
+            size_t N_REPEAT = 100;
             for(size_t i = 0; i < N_REPEAT; ++i) {
                 size_t c1 = _rdtsc();
                 _conv_simple<uint8_t, int16_t, int8_t, int16_t, int32_t>(data.data(), kernel.data(), res1.data(), d1, d2, k1, k2);
@@ -455,13 +455,13 @@ void test_convolution_vnni() {
                 // printArr(data.data(), d1, d2, "x");
                 // printArr(kernel.data(), k1, k2, "w");
 
-                printArr(res1.data(), out1, out2, "ref");
-                printArr(res2.data(), out1, out2, "avx");
-                return;
+                // printArr(res1.data(), out1, out2, "ref");
+                // printArr(res2.data(), out1, out2, "avx");
+                // return;
             } else {
                 n_executed_tests++;
-                printArr(res1.data(), out1, out2, "ref");
-                printArr(res2.data(), out1, out2, "avx");
+                // printArr(res1.data(), out1, out2, "ref");
+                // printArr(res2.data(), out1, out2, "avx");
             }
         }
     }
