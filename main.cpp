@@ -191,7 +191,6 @@ void test_convolution_vec() {
 
 
             printf("CPE: %4zu x %4zu, %4zu x %4zu | %7.3f %7.3f | %7.3f\n", d1, d2, k1, k2, cpe1, cpe2, cpe1 / cpe2);
-            printf("%7.3f\n", cpe1 / cpe2);
 
             bool equal = std::equal(res1.begin(), res1.end(), res2.begin(), [](float r1, float r2) {
                 return std::isfinite(r1) && std::isfinite(r2) && std::abs(r1 - r2) < 0.001;
@@ -343,31 +342,138 @@ void test_dpbusd() {
     printf("\n");
 }
 
-void test_convolution_vnni() {
-    printf("test_convolution_vnni\n");
-    size_t batchSize = 1;
+template<typename Func>
+size_t measure(Func func, size_t N_REPEAT = 1000) {
+    std::vector<size_t> cc;
+    for(size_t i = 0; i < N_REPEAT; ++i) {
+        size_t c1 = _rdtsc();
+        func();
+        size_t c2 = _rdtsc();
+        cc.push_back(c2-c1);
+    }
+    std::sort(cc.begin(), cc.begin());
+    size_t c1 = cc[N_REPEAT/2];
+    return c1;
+}
 
-    // std::vector<size_t> d1_vec({17});
-    // std::vector<size_t> d2_vec({17});
-    // std::vector<size_t> k1_vec({7});
-    // std::vector<size_t> k2_vec({7});
 
-    // std::vector<size_t> d1_vec({2});
-    // std::vector<size_t> k1_vec({2});
+double conv_bench_int8_vnni(int d1, int d2, int k1, int k2, int out1, int out2) {
+    std::vector<uint8_t> data(d1 * d2);
+    std::vector<int8_t> kernel(k1 * k2);
+    std::vector<int32_t> res1(out1 * out2);
+    for(size_t i = 0; i < data.size(); ++i) {
+        data[i] = i+1;
+    }
+    for(size_t i = 0; i < kernel.size(); ++i) {
+        kernel[i] = kernel.size() - i + 1;
+    }
 
-    // std::vector<size_t> d2_vec({1});
-    // std::vector<size_t> k2_vec({1});
+    size_t clocks = measure([&]() {
+        vnni_conv(data.data(), kernel.data(), res1.data(), d1, d2, k1, k2);
+    });
 
+    double cpe = double(clocks)/(k1*k2*out1*out2);
+    return cpe;
+}
+
+double conv_bench_int8_native(int d1, int d2, int k1, int k2, int out1, int out2) {
+    std::vector<uint8_t> data(d1 * d2);
+    std::vector<int8_t> kernel(k1 * k2);
+    std::vector<int32_t> res1(out1 * out2);
+    for(size_t i = 0; i < data.size(); ++i) {
+        data[i] = i+1;
+    }
+    for(size_t i = 0; i < kernel.size(); ++i) {
+        kernel[i] = kernel.size() - i + 1;
+    }
+
+    size_t clocks = measure([&]() {
+        _conv_simple<uint8_t, int16_t, int8_t, int16_t, int32_t>(data.data(), kernel.data(), res1.data(), d1, d2, k1, k2);
+    });
+
+    double cpe = double(clocks)/(k1*k2*out1*out2);
+    return cpe;
+}
+
+double conv_bench_float_native(int d1, int d2, int k1, int k2, int out1, int out2) {
+    std::vector<float> data(d1 * d2);
+    std::vector<float> kernel(k1 * k2);
+    std::vector<float> res1(out1 * out2);
+    for(size_t i = 0; i < data.size(); ++i) {
+        data[i] = i+1;
+    }
+    for(size_t i = 0; i < kernel.size(); ++i) {
+        kernel[i] = kernel.size() - i + 1;
+    }
+
+    size_t clocks = measure([&]() {
+        conv_simple(data.data(), kernel.data(), res1.data(), d1, d2, k1, k2);
+    });
+
+    double cpe = double(clocks)/(k1*k2*out1*out2);
+    return cpe;
+}
+
+double conv_bench_float_avx512(int d1, int d2, int k1, int k2, int out1, int out2) {
+    std::vector<float> data(d1 * d2);
+    std::vector<float> kernel(k1 * k2);
+    std::vector<float> res1(out1 * out2);
+    for(size_t i = 0; i < data.size(); ++i) {
+        data[i] = i+1;
+    }
+    for(size_t i = 0; i < kernel.size(); ++i) {
+        kernel[i] = kernel.size() - i + 1;
+    }
+
+    size_t clocks = measure([&]() {
+        _conv_avx512(data.data(), kernel.data(), res1.data(), d1, d2, k1, k2);
+    });
+
+    double cpe = double(clocks)/(k1*k2*out1*out2);
+    return cpe;
+}
+
+
+void running_conv_bench() {
     std::vector<size_t> d1_vec({5, 16, 17, 28, 32, 37, 64, 77, 128});
     std::vector<size_t> d2_vec({5, 16, 17, 28, 32, 37, 64, 77, 128});
     std::vector<size_t> k1_vec({2, 3, 4, 5, 7});
     std::vector<size_t> k2_vec({2, 3, 4, 5, 7});
 
+    for(size_t ipk = 0; ipk < k1_vec.size(); ++ipk) {
+        for(size_t ip = 0; ip < d1_vec.size(); ++ip) {
+            size_t d1 = d1_vec[ip];
+            size_t d2 = d2_vec[ip];
+            size_t k1 = k1_vec[ipk];
+            size_t k2 = k2_vec[ipk];
 
-    // std::vector<size_t> d1_vec({5, 16, 17, 28, 32, 37, 64, 77, 128});
-    // std::vector<size_t> d2_vec({5, 16, 17, 28, 32, 37, 64, 77, 128});
-    // std::vector<size_t> k1_vec({2, 3, 4, 5, 7});
-    // std::vector<size_t> k2_vec({2, 3, 4, 5, 7});
+            if(k1 > d1) continue;
+            if(k2 > d2) continue;
+
+            size_t out1 = d1 - k1 + 1;
+            size_t out2 = d2 - k2 + 1;
+
+            double t1 = conv_bench_float_native(d1, d2, k1, k2, out1, out2);
+            double t2 = conv_bench_float_avx512(d1, d2, k1, k2, out1, out2);
+            double t3 = conv_bench_int8_native(d1, d2, k1, k2, out1, out2);
+            double t4 = conv_bench_int8_vnni(d1, d2, k1, k2, out1, out2);
+
+            printf("CPE: %4zu x %4zu, %4zu x %4zu | %7.3f %7.3f | %7.3f %7.3f | %7.3f %7.3f %7.3f\n", d1, d2, k1, k2, t1, t2, t3, t4, t1/t2, t1/t3, t1/t4);
+        }
+    }
+
+
+}
+
+
+void test_convolution_vnni() {
+    printf("test_convolution_vnni\n");
+    size_t batchSize = 1;
+
+    std::vector<size_t> d1_vec({5, 16, 17, 28, 32, 37, 64, 77, 128});
+    std::vector<size_t> d2_vec({5, 16, 17, 28, 32, 37, 64, 77, 128});
+    std::vector<size_t> k1_vec({2, 3, 4, 5, 7});
+    std::vector<size_t> k2_vec({2, 3, 4, 5, 7});
 
     size_t n_executed_tests = 0;
 
@@ -408,7 +514,7 @@ void test_convolution_vnni() {
             // std::fill(res2.begin(), res2.end(), 0.0f);
 
             std::vector<size_t> cc;
-            size_t N_REPEAT = 100;
+            size_t N_REPEAT = 1000;
             for(size_t i = 0; i < N_REPEAT; ++i) {
                 size_t c1 = _rdtsc();
                 _conv_simple<uint8_t, int16_t, int8_t, int16_t, int32_t>(data.data(), kernel.data(), res1.data(), d1, d2, k1, k2);
@@ -441,9 +547,7 @@ void test_convolution_vnni() {
             float cpe1 = float(c1)/(k1*k2*out1*out2);
             float cpe2 = float(c2)/(k1*k2*out1*out2);
 
-
             printf("CPE: %4zu x %4zu, %4zu x %4zu | %7.3f %7.3f | %7.3f\n", d1, d2, k1, k2, cpe1, cpe2, cpe1 / cpe2);
-            printf("%7.3f\n", cpe1 / cpe2);
 
             bool equal = std::equal(res1.begin(), res1.end(), res2.begin(), [](float r1, float r2) {
                 return std::isfinite(r1) && std::isfinite(r2) && std::abs(r1 - r2) < 0.001;
@@ -521,12 +625,13 @@ int main(int argc, char* argv[]) {
     {
         nEpoch = std::atoi(argv[2]);
     }
-    // test_convolution();
     // mnist_nn_conv<float>(batchSize, nEpoch);
 
+    running_conv_bench();
 
-    test_dpbusd();
-    test_convolution_vnni();
+    // test_dpbusd();
+    // test_convolution_vec();
+    // test_convolution_vnni();
     // test_my_mm512_permutexvar_epi8();
 
 
