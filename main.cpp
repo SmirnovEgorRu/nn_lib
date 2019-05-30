@@ -499,7 +499,7 @@ void test_my_mm512_permutexvar_epi8() {
     }
     const __m512i x = _mm512_loadu_epi8(arr);
 
-    __m512i res = _my_mm512_permutexvar_epi8(idx, x);
+    __m512i res = permutexvar_epi8(idx, x);
 
     _mm512_storeu_epi8(arr, res);
 

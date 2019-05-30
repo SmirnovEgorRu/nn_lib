@@ -6,8 +6,14 @@ CC="icc"
 
 #-DTBB_USE_THREADING_TOOLS
 
-TBBROOT="/export/users/cache/tbb/lnx/2017.2.132/tbb"
-DAALROOT="/nfs/inn/proj/numerics1/Users/egorsmir/daal/daal_versions/daal_2019u4/__release_lnx/daal/lib/intel64_lin/"
+
+if [ "${DAALROOT}" == "" ];then
+    TBBROOT="/export/users/cache/tbb/lnx/2017.2.132/tbb"
+fi
+
+if [ "${DAALROOT}" == "" ];then
+    DAALROOT="/nfs/inn/proj/numerics1/Users/egorsmir/daal/daal_versions/daal_2019u4/__release_lnx/daal/lib/intel64_lin/"
+fi
 OPTIONS="-g -O3 -Werror -std=c++17"
 if [ "${1}" == "skx" ];then
     OPTIONS="${OPTIONS} -xCOMMON-AVX512 -D__AVX512"
