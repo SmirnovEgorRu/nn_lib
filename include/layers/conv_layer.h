@@ -294,13 +294,13 @@ const __m512i idx2 =   _mm512_set_epi16(18, 17, 16, 15, // 15
 
     // __m512i* buff = (__m512i*)malloc(sizeof(__m512i) * out2 * in1);
 
-    __m512i* buff = (__m512i*)alloca(sizeof(__m512i) * out2 * in1);
+    // __m512i* buff = (__m512i*)alloca(sizeof(__m512i) * out2 * in1);
 
-    for(size_t i = 0; i < in1; ++i) {
-        for(size_t j = 0; j < out2; ++j) {
-            buff[i*out2 + j] = _mm512_loadu_permutexvar_epi8_2idx(frame + i * in2 + j, idx1, idx2);
-        }
-    }
+    // for(size_t i = 0; i < in1; ++i) {
+    //     for(size_t j = 0; j < out2; ++j) {
+    //         buff[i*out2 + j] = _mm512_loadu_permutexvar_epi8_2idx(frame + i * in2 + j, idx1, idx2);
+    //     }
+    // }
 
     for(int irow = 0; irow < out1; ++irow) {
         for(int in16 = 0; in16 < n16; ++in16) {
@@ -312,8 +312,8 @@ const __m512i idx2 =   _mm512_set_epi16(18, 17, 16, 15, // 15
                 for(int j = 0; j < k4; ++j, i+=4) {
                     // __m512i x = _mm256_loadu_epi8(frame + (irow + kk1) * in2 + i + in16*16);
                     //x = permutexvar_epi8(idx, x);
-                    // __m512i x = _mm512_loadu_permutexvar_epi8_2idx(frame + (irow + kk1) * in2 + i + in16*16, idx1, idx2);
-                    __m512i x = buff[(irow + kk1) * out2 + i + in16*16];
+                    __m512i x = _mm512_loadu_permutexvar_epi8_2idx(frame + (irow + kk1) * in2 + i + in16*16, idx1, idx2);
+                    // __m512i x = buff[(irow + kk1) * out2 + i + in16*16];
 
                     __m512i k = _mm512_set1_epi32(*((int32_t*)(kernel + kk1*_k2 + i))); // broadcast [4 x 8bit] to 512bit register
                     r = dpbusd(r, x, k);
@@ -321,9 +321,9 @@ const __m512i idx2 =   _mm512_set_epi16(18, 17, 16, 15, // 15
                 if (tail_k) {
                     // __m512i x = _mm512_loadu_epi8(frame + (irow + kk1) * in2 + i + in16*16);
                     // x = permutexvar_epi8(idx, x);
-                    // __m512i x = _mm512_loadu_permutexvar_epi8_2idx(frame + (irow + kk1) * in2 + i + n16*16, idx1, idx2);
+                    __m512i x = _mm512_loadu_permutexvar_epi8_2idx(frame + (irow + kk1) * in2 + i + in16*16, idx1, idx2);
 
-                    __m512i x = buff[(irow + kk1) * out2 + i + in16*16];
+                    // __m512i x = buff[(irow + kk1) * out2 + i + in16*16];
 
                     int32_t k32 = *((int32_t*)(kernel + kk1*_k2 + i)) & offset_for_tail;
                      __m512i k = _mm512_set1_epi32(k32);
@@ -341,8 +341,8 @@ const __m512i idx2 =   _mm512_set_epi16(18, 17, 16, 15, // 15
                     // __m512i x = _mm512_loadu_epi8(frame + (irow + kk1) * in2 + i + n16*16);
                     // x = permutexvar_epi8(idx, x);
 
-                    // __m512i x = _mm512_loadu_permutexvar_epi8_2idx(frame + (irow + kk1) * in2 + i + in16*16, idx1, idx2);
-                    __m512i x = buff[(irow + kk1) * out2 + i + n16*16];
+                    __m512i x = _mm512_loadu_permutexvar_epi8_2idx(frame + (irow + kk1) * in2 + i + n16*16, idx1, idx2);
+                    // __m512i x = buff[(irow + kk1) * out2 + i + n16*16];
                     __m512i k = _mm512_set1_epi32(*((int32_t*)(kernel + kk1*_k2 + i))); // broadcast [4 x 8bit] to 512bit register
                     r = dpbusd(r, x, k);
                 }
@@ -350,9 +350,9 @@ const __m512i idx2 =   _mm512_set_epi16(18, 17, 16, 15, // 15
                     // __m512i x = _mm512_loadu_epi8(frame + (irow + kk1) * in2 + i + n16*16);
                     // x = permutexvar_epi8(idx, x);
 
-                    // __m512i x = _mm512_loadu_permutexvar_epi8_2idx(frame + (irow + kk1) * in2 + i + n16*16, idx1, idx2);
+                    __m512i x = _mm512_loadu_permutexvar_epi8_2idx(frame + (irow + kk1) * in2 + i + n16*16, idx1, idx2);
 
-                    __m512i x = buff[(irow + kk1) * out2 + i + n16*16];
+                    // __m512i x = buff[(irow + kk1) * out2 + i + n16*16];
 
                     int32_t k32 = *((int32_t*)(kernel + kk1*_k2 + i)) & offset_for_tail;
                      __m512i k = _mm512_set1_epi32(k32);
