@@ -370,7 +370,7 @@ double conv_bench_int8_vnni(int d1, int d2, int k1, int k2, int out1, int out2) 
 
     size_t clocks = measure([&]() {
         vnni_conv(data.data(), kernel.data(), res1.data(), d1, d2, k1, k2);
-    }, 50000);
+    });
 
     double cpe = double(clocks)/(k1*k2*out1*out2);
     return cpe;
@@ -453,16 +453,16 @@ void running_conv_bench() {
             size_t out1 = d1 - k1 + 1;
             size_t out2 = d2 - k2 + 1;
 
-            // double t1 = conv_bench_float_native(d1, d2, k1, k2, out1, out2);
-            // double t2 = conv_bench_float_avx512(d1, d2, k1, k2, out1, out2);
-            // double t3 = conv_bench_int8_native(d1, d2, k1, k2, out1, out2);
-            // double t4 = conv_bench_int8_vnni(d1, d2, k1, k2, out1, out2);
-
-
-            double t1 = 1;
-            double t2 = 1;
-            double t3 = 1;
+            double t1 = conv_bench_float_native(d1, d2, k1, k2, out1, out2);
+            double t2 = conv_bench_float_avx512(d1, d2, k1, k2, out1, out2);
+            double t3 = conv_bench_int8_native(d1, d2, k1, k2, out1, out2);
             double t4 = conv_bench_int8_vnni(d1, d2, k1, k2, out1, out2);
+
+
+            // double t1 = 1;
+            // double t2 = 1;
+            // double t3 = 1;
+            // double t4 = conv_bench_int8_vnni(d1, d2, k1, k2, out1, out2);
 
             printf("CPE: %4zu x %4zu, %4zu x %4zu | %7.3f %7.3f | %7.3f %7.3f | %7.3f %7.3f %7.3f\n", d1, d2, k1, k2, t1, t2, t3, t4, t1/t2, t1/t3, t1/t4);
         }
