@@ -464,7 +464,8 @@ void running_conv_bench() {
             // double t3 = 1;
             // double t4 = conv_bench_int8_vnni(d1, d2, k1, k2, out1, out2);
 
-            printf("CPE: %4zu x %4zu, %4zu x %4zu | %7.3f %7.3f | %7.3f %7.3f | %7.3f %7.3f %7.3f\n", d1, d2, k1, k2, t1, t2, t3, t4, t1/t2, t1/t3, t1/t4);
+            // printf("CPE: %4zu x %4zu, %4zu x %4zu | %7.3f %7.3f | %7.3f %7.3f | %7.3f %7.3f %7.3f\n", d1, d2, k1, k2, t1, t2, t3, t4, t1/t2, t1/t3, t1/t4);
+            printf("%zu,%zu,%zu,%zu,%f,%f,%f,%f\n", d1, d2, k1, k2, t1, t2, t3, t4);
         }
     }
 }
