@@ -53,6 +53,23 @@ protected:
     }
 };
 
+template<typename T>
+class XavierGenerator: public Generator<T> {
+public:
+    XavierGenerator(size_t seed, size_t n1, size_t n2):
+            _seed(seed), _n1(n1), _n2(n2),  {
+    }
+
+protected:
+    size_t _seed;
+    size_t _n1;
+    size_t _n2;
+    virtual void generateImpl(T* data, size_t n) {
+        T a = std::sqrt(6) / std::sqrt(_n1 + _n2);
+        rand_f(data, n, -a, a, _seed);
+    }
+};
+
 static size_t SEED_DEFAULT = 777;
 
 template<typename T>

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-SOURCES="main.cpp"
+SOURCES="main.cpp src/layers/conv_layer.cpp src/layers/fullyconnected_layer.cpp src/layers/layer_base.cpp src/layers/max_pooling.cpp"
 NAME="nn"
 CC="icc"
 

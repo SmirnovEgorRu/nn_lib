@@ -1,4 +1,10 @@
 
+#ifndef _MSC_VER
+#define _GLIBCXX_USE_NOEXCEPT _GLIBCXX_USE_NOEXCEPT
+#else
+#define _GLIBCXX_USE_NOEXCEPT
+#endif
+
 #include <random>
 #include <algorithm>
 #include "nn.h"
@@ -311,36 +317,36 @@ void mnist_nn_conv(size_t batchSize, size_t nEpoch) {
     topo.score(x, y);
 }
 
-void test_dpbusd() {
-    // const __m512i x = _mm512_set1_epi16(200);
-    // const __m512i k = _mm512_set1_epi16(-3);
-    // const __m512i src = _mm512_set1_epi32(1);
+// void test_dpbusd() {
+//     // const __m512i x = _mm512_set1_epi16(200);
+//     // const __m512i k = _mm512_set1_epi16(-3);
+//     // const __m512i src = _mm512_set1_epi32(1);
 
-    std::vector<uint8_t> data(64);
-    std::vector<int8_t> kernel(64);
-    std::vector<int32_t> res1(16);
+//     std::vector<uint8_t> data(64);
+//     std::vector<int8_t> kernel(64);
+//     std::vector<int32_t> res1(16);
 
-    for(size_t i = 0; i < data.size(); ++i) {
-        data[i] = i+1;
-    }
-    for(size_t i = 0; i < kernel.size(); ++i) {
-        kernel[i] = kernel.size() - i + 1;
-    }
+//     for(size_t i = 0; i < data.size(); ++i) {
+//         data[i] = i+1;
+//     }
+//     for(size_t i = 0; i < kernel.size(); ++i) {
+//         kernel[i] = kernel.size() - i + 1;
+//     }
 
-    const __m512i x = _mm512_loadu_epi8(data.data());
-    const __m512i k = _mm512_loadu_epi8(kernel.data());
-    const __m512i src = _mm512_loadu_epi32(res1.data());
+//     const __m512i x = _mm512_loadu_epi8(data.data());
+//     const __m512i k = _mm512_loadu_epi8(kernel.data());
+//     const __m512i src = _mm512_loadu_epi32(res1.data());
 
-    int32_t arr[16];
+//     int32_t arr[16];
 
-    __m512i res = dpbusd(x, k , src);
-    _mm512_storeu_epi32(arr, res);
+//     __m512i res = dpbusd(x, k , src);
+//     _mm512_storeu_epi32(arr, res);
 
-    for(size_t i = 0; i < 16; ++i) {
-        printf("%d ", arr[i]);
-    }
-    printf("\n");
-}
+//     for(size_t i = 0; i < 16; ++i) {
+//         printf("%d ", arr[i]);
+//     }
+//     printf("\n");
+// }
 
 template<typename Func>
 size_t measure(Func func, size_t N_REPEAT = 1000) {
@@ -580,41 +586,41 @@ void test_convolution_vnni() {
     }
 }
 
-void test_my_mm512_permutexvar_epi8() {
+// void test_my_mm512_permutexvar_epi8() {
 
-    const __m512i idx = _mm512_set_epi8(    18, 17, 16, 15,
-    17, 16, 15, 14,
-    16, 15, 14, 13,
-    15, 14, 13, 12,
-    14, 13, 12, 11,
-    13, 12, 11, 10,
-    12, 11, 10,  9,
-    11, 10,  9,  8,
-    10,  9,  8,  7,
-     9,  8,  7,  6,
-     8,  7,  6,  5,
-     7, 6, 5,4,
-     6,5,4,3,
-     5,4,3,2,
-     4,3,2,1,
-     3,2,1,0);
+//     const __m512i idx = _mm512_set_epi8(    18, 17, 16, 15,
+//     17, 16, 15, 14,
+//     16, 15, 14, 13,
+//     15, 14, 13, 12,
+//     14, 13, 12, 11,
+//     13, 12, 11, 10,
+//     12, 11, 10,  9,
+//     11, 10,  9,  8,
+//     10,  9,  8,  7,
+//      9,  8,  7,  6,
+//      8,  7,  6,  5,
+//      7, 6, 5,4,
+//      6,5,4,3,
+//      5,4,3,2,
+//      4,3,2,1,
+//      3,2,1,0);
 
 
-    uint8_t arr[64];
-    for(size_t i = 0; i < 64; ++i) {
-        arr[i] = i + 1;
-    }
-    const __m512i x = _mm512_loadu_epi8(arr);
+//     uint8_t arr[64];
+//     for(size_t i = 0; i < 64; ++i) {
+//         arr[i] = i + 1;
+//     }
+//     const __m512i x = _mm512_loadu_epi8(arr);
 
-    __m512i res = permutexvar_epi8(idx, x);
+//     __m512i res = permutexvar_epi8(idx, x);
 
-    _mm512_storeu_epi8(arr, res);
+//     _mm512_storeu_epi8(arr, res);
 
-    for(size_t i = 0; i < 64; ++i) {
-        printf("%d ", arr[i]);
-    }
-    printf("\n");
-}
+//     for(size_t i = 0; i < 64; ++i) {
+//         printf("%d ", arr[i]);
+//     }
+//     printf("\n");
+// }
 
 
 int main(int argc, char* argv[]) {

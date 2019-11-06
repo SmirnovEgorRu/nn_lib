@@ -159,6 +159,7 @@ public:
             }
 
             size_t countAcc = 0;
+            #pragma omp parallel for reduction(+:countAcc)
             for(size_t i = 0; i < nSamples; ++i) {
                 auto iter1 = std::max_element(re.data() + yFrameSize*i, re.data() + yFrameSize*i + yFrameSize);
                 auto iter2 = std::max_element(grth.data() + yFrameSize*i, grth.data() + yFrameSize*i + yFrameSize);
