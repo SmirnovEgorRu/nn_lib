@@ -13,10 +13,10 @@
 namespace fast_data_source
 {
 
-extern "C" {
-    float __FPK_string_to_float(const char * nptr, char ** endptr);
-    double __FPK_string_to_double(const char * nptr, char ** endptr);
-}
+// extern "C" {
+//     float __FPK_string_to_float(const char * nptr, char ** endptr);
+//     double __FPK_string_to_double(const char * nptr, char ** endptr);
+// }
 
 size_t get_size(const char* name)
 {
@@ -87,7 +87,11 @@ size_t read_csv(float** data, float** labels, size_t n_feat, const char* name)
             if (isDelimiter(src[i]))
             {
                 char* tmp = src + i;
-                ptr[n_num++] = __FPK_string_to_float(src + prev, &tmp);
+                char t = *tmp;
+                // *tmp = '\0';
+                // ptr[n_num++] = __FPK_string_to_float(src + prev, &tmp);
+                ptr[n_num++] = atof(src + prev);
+                // *tmp = t;
                 prev = i + 1;
                 if (n_num > mem_size)
                 {

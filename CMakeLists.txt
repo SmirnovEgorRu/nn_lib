@@ -12,11 +12,8 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -g -Werror -std=c++17")
 
 
 set(SOURCE_LIB src/dnnl.cpp src/layers/fullyconnected_layer.cpp src/layers/layer_base.cpp)
-set(TBBROOT "/export/users/cache/tbb/lnx/2017.2.132/tbb")
-set(DAALROOT "/nfs/inn/proj/numerics1/Users/egorsmir/daal/daal_versions/daal_2019u4/__release_lnx/daal/lib/intel64_lin/")
 
 include_directories(include)
-include_directories(${TBBROOT}/include/tbb)
 
 SET(CMAKE_LIBRARY_OUTPUT_DIRECTORY "lib")
 

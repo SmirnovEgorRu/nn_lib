@@ -1,0 +1,5 @@
+build/
+tbb/
+tests/build/
+tests/data/
+tests/mnist.npz

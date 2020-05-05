@@ -1,7 +1,9 @@
 
 #include <stdio.h>
-// #include <gtest/gtest.h>
+#include <string>
 #include "nn.h"
+#undef ASSERT_TRUE
+#include <gtest/gtest.h>
 
 
 void test_fullyconnected() {
@@ -47,13 +49,15 @@ size_t read_data_set(std::string path, Tensor<float>& x, Tensor<float>& y, size_
     return nRows;
 }
 
-void mnist_nn() {
-    std::string trainDataSet("/nfs/site/proj/mkl/mirror/NN/DAAL_datasets/decision_forest/mnist_train.csv");
-    std::string testDataSet("/nfs/site/proj/mkl/mirror/NN/DAAL_datasets/decision_forest/mnist_test.csv");
+TEST(mnist, train_fullyconnected_nn)
+{
+    std::string datasetPath = "../data";
+    std::string trainDataSet(datasetPath + "/train.csv");
+    std::string testDataSet(datasetPath + "/test.csv");
 
     size_t nClasses = 10;
     size_t batchSize = 256;
-    size_t nEpoch = 500;
+    size_t nEpoch = 5;
     size_t p = 784;
     size_t d = 28;
 
@@ -68,7 +72,12 @@ void mnist_nn() {
     auto sigm2 = topo.add(new SoftMaxLayer<float, float>(), fc2);
 
     SGDSolver<float> solver(0.3);
+
+    double t1 = omp_get_wtime();
     topo.fit(x, y, nEpoch, batchSize, solver);
+    double t2 = omp_get_wtime();
+
+    printf("Fit time = %f sec\n", t2-t1);
 
     Tensor<float> xTest, yTest;
     size_t nRowsTest = read_data_set(testDataSet, xTest, yTest, p, nClasses);
@@ -85,12 +94,14 @@ void mnist_nn() {
             countAcc++;
         }
     }
-    printf("Test accuracy = %f\n", float(countAcc)/nRowsTest);
+    auto acc = 100.f * float(countAcc)/nRowsTest;
+
+    printf("Test accuracy = %f\n", acc);
+    ASSERT_GT(acc, 99.7);
 }
 
 int main(int argc, char* argv[]) {
-    // test_fullyconnected();
-    mnist_nn();
 
-    return 0;
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
 }

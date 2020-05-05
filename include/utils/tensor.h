@@ -6,7 +6,7 @@
 #include "dev_utils.h"
 #include <vector>
 #include <tuple>
-#include "tbb.h"
+#include "tbb/tbb.h"
 
 template<typename T>
 class Tensor {

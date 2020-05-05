@@ -171,7 +171,7 @@ public:
                 }
             }
             double t3 = omp_get_wtime();
-            printf("[%4zu][%7.3f][%7.3f] RMSE = %f | Acc = %f\n", iEpoch, (t2-t1)*1000, (t3-t2)*1000, std::sqrt(double(count)/double(nSamples)), double(countAcc)/double(nSamples));
+            printf("[%4zu][%7.3f][%7.3f] RMSE = %f | Acc = %f\n", iEpoch, (t2-t1)*1000, (t3-t2)*1000, std::sqrt(double(count)/double(nSamples)), 100. * double(countAcc)/double(nSamples));
         }
     }
 

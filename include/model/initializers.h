@@ -56,9 +56,7 @@ protected:
 template<typename T>
 class XavierGenerator: public Generator<T> {
 public:
-    XavierGenerator(size_t seed, size_t n1, size_t n2):
-            _seed(seed), _n1(n1), _n2(n2),  {
-    }
+    XavierGenerator(size_t seed, size_t n1, size_t n2): _seed(seed), _n1(n1), _n2(n2) { }
 
 protected:
     size_t _seed;
