@@ -7,7 +7,23 @@
 static bool COMPUTE_IN_INT8 = false;
 
 template<typename AType, typename ATypeTmp, typename BType, typename BTypeTmp, typename CType>
-void _conv_simple(const AType* frame, const BType* kernel, CType* res, size_t in1, size_t in2, size_t _k1, size_t _k2);
+void _conv_simple(const AType* frame, const BType* kernel, CType* res, size_t in1, size_t in2, size_t _k1, size_t _k2) {
+    size_t out1 = in1 - _k1 + 1;
+    size_t out2 = in2 - _k2 + 1;
+
+    for (size_t i = 0; i < out1; ++i) {
+        for (size_t j = 0; j < out2; ++j) {
+            CType sum = 0;
+            for (size_t k1 = 0; k1 < _k1; ++k1) {
+                for (size_t k2 = 0; k2 < _k2; ++k2) {
+                    sum += ATypeTmp(frame[(i + k1)*in2 + j + k2]) * BTypeTmp(kernel[k1*_k2 + k2]);
+                }
+            }
+            res[i * out2 + j] = sum;
+        }
+    }
+}
+
 void conv_simple(const float* frame, const float* kernel, float* res, size_t in1, size_t in2, size_t _k1, size_t _k2);
 void vnni_conv_common(const uint8_t* frame, const int8_t* kernel, int32_t* res, int in1, int in2, int _k1, int _k2);
 
@@ -23,6 +39,12 @@ void _conv_blocking_int8(const int8_t* frame, const int8_t* kernel, int32_t* res
 void _conv_avx512_if(const float* frame, const float* kernel, float* res, size_t in1, size_t in2, size_t _k1, size_t _k2);
 void _conv_avx512(const float* frame, const float* kernel, float* res, int in1, int in2, int _k1, int _k2);
 void _conv_avx512_null(const float* frame, const float* kernel, float* res, int in1, int in2, int _k1, int _k2);
+
+
+size_t vnni_conv_get_buffer_size(const uint8_t* frame, const int8_t* kernel, int32_t* res, int in1, int in2, int _k1, int _k2);
+void vnni_conv_fill_buffer(const uint8_t* frame, const int8_t* kernel, int32_t* res, int in1, int in2, int _k1, int _k2, uint8_t* buffer);
+void vnni_conv_with_buffer(const uint8_t* buffer, const int8_t* kernel, int32_t* res, int in1, int in2, int _k1, int _k2);
+void vnni_conv_buffer(const uint8_t* buffer, const int8_t* kernel, int32_t* res, int in1, int in2, int _k1, int _k2);
 
 template<typename InType, typename OutType>
 class Convolution2d: public LayerBase<InType, OutType> {

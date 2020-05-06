@@ -1,4 +1,5 @@
 #include <immintrin.h>
+#include <emmintrin.h>
 #include <malloc.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -6,23 +7,65 @@
 #include "model/initializers.h"
 #include "layers/conv_layer.h"
 
-template<typename AType, typename ATypeTmp, typename BType, typename BTypeTmp, typename CType>
-void _conv_simple(const AType* frame, const BType* kernel, CType* res, size_t in1, size_t in2, size_t _k1, size_t _k2) {
-    size_t out1 = in1 - _k1 + 1;
-    size_t out2 = in2 - _k2 + 1;
-
-    for (size_t i = 0; i < out1; ++i) {
-        for (size_t j = 0; j < out2; ++j) {
-            CType sum = 0;
-            for (size_t k1 = 0; k1 < _k1; ++k1) {
-                for (size_t k2 = 0; k2 < _k2; ++k2) {
-                    sum += ATypeTmp(frame[(i + k1)*in2 + j + k2]) * BTypeTmp(kernel[k1*_k2 + k2]);
-                }
-            }
-            res[i * out2 + j] = sum;
-        }
+#ifdef __GNUC__
+    inline __m256i _mm256_load_epi8(const void* ptr) {
+        return _mm256_loadu_si256((const __m256i_u*)ptr);
     }
-}
+
+    inline __m256i _mm256_load_epi16(const void* ptr) {
+        return _mm256_loadu_si256((const __m256i_u*)ptr);
+    }
+
+    inline __m256i _mm256_load_epi32(const void* ptr) {
+        return _mm256_loadu_si256((const __m256i_u*)ptr);
+    }
+
+    inline __m256i _mm256_load_epi64(const void* ptr) {
+        return _mm256_loadu_si256((const __m256i_u*)ptr);
+    }
+
+    inline void _mm512_storeu_epi16(void* arr, __m512i x) {
+        _mm512_storeu_si512(arr, x);
+    }
+
+    inline __m512i _mm512_load_epi8(const void* ptr) {
+        return _mm512_loadu_si512((const __m512i_u*)ptr);
+    }
+
+    inline __m512i _mm512_loadu_epi32(const void* ptr) {
+        return _mm512_loadu_si512((const __m512i_u*)ptr);
+    }
+
+    // inline __m512i _mm512_load_epi32(const void* ptr) {
+    //     return _mm512_load_si512((const __m512i_u*)ptr);
+    // }
+
+    inline void _mm512_storeu_epi32(void* arr, __m512i x) {
+        _mm512_storeu_si512(arr, x);
+    }
+
+#endif
+
+// template<typename AType, typename ATypeTmp, typename BType, typename BTypeTmp, typename CType>
+// void _conv_simple(const AType* frame, const BType* kernel, CType* res, size_t in1, size_t in2, size_t _k1, size_t _k2) {
+//     size_t out1 = in1 - _k1 + 1;
+//     size_t out2 = in2 - _k2 + 1;
+
+//     for (size_t i = 0; i < out1; ++i) {
+//         for (size_t j = 0; j < out2; ++j) {
+//             CType sum = 0;
+//             for (size_t k1 = 0; k1 < _k1; ++k1) {
+//                 for (size_t k2 = 0; k2 < _k2; ++k2) {
+//                     sum += ATypeTmp(frame[(i + k1)*in2 + j + k2]) * BTypeTmp(kernel[k1*_k2 + k2]);
+//                 }
+//             }
+//             res[i * out2 + j] = sum;
+//         }
+//     }
+// }
+
+template<uint8_t, int16_t, int8_t, int16_t, int32_t>
+void _conv_simple(const uint8_t* frame, const int8_t* kernel, int32_t* res, size_t in1, size_t in2, size_t _k1, size_t _k2);
 
 void conv_simple(const float* frame, const float* kernel, float* res, size_t in1, size_t in2, size_t _k1, size_t _k2) {
     size_t out1 = in1 - _k1 + 1;
@@ -56,6 +99,8 @@ void conv_simple(const float* frame, const float* kernel, float* res, size_t in1
 //         res[i] = sum;
 //     }
 // }
+
+#define __VNNI
 
 inline __m512i dpbusd(__m512i src, const __m512i x, const __m512i k) {
 #ifdef __VNNI
@@ -157,8 +202,8 @@ inline __m512i permutexvar_epi8(__m512i idx, __m512i x) {
 #endif
 }
 
-inline __m512i _mm512_loadu_permutexvar_epi8_2idx(const uint8_t* ptr,  const __m512i idx1, const  __m512i idx2) {
-    __m512i x16 = _mm512_cvtepu8_epi16(_mm256_loadu_epi8(ptr));
+inline __m512i _mm512_load_permutexvar_epi8_2idx(const uint8_t* ptr,  const __m512i idx1, const  __m512i idx2) {
+    __m512i x16 = _mm512_cvtepu8_epi16(_mm256_load_epi8(ptr));
 
     __m512i lr = _mm512_permutexvar_epi16(idx1, x16);
     __m512i hr = _mm512_permutexvar_epi16(idx2, x16);
@@ -208,14 +253,252 @@ void _mm512_print_epi8(__m512i x, std::string str = "") {
 }
 
 
-inline __m512i _mm512_loadu_permutexvar_epi8(const uint8_t* ptr, __m512i idx) {
-    __m512i x = _mm512_loadu_epi8(ptr);
+inline __m512i _mm512_load_permutexvar_epi8(const uint8_t* ptr, __m512i idx) {
+    __m512i x = _mm512_load_epi8(ptr);
     return permutexvar_epi8(idx, x);
 }
 
+size_t vnni_conv_get_buffer_size(const uint8_t* frame, const int8_t* kernel, int32_t* res, int in1, int in2, int _k1, int _k2) {
+    int out1 = in1 - _k1 + 1;
+    int out2 = in2 - _k2 + 1;
 
 
-void vnni_conv_common(const uint8_t* frame, const int8_t* kernel, int32_t* res, int in1, int in2, int _k1, int _k2) {
+    const __m512i idx1 = _mm512_set_epi16( 10,  9,  8,  7, // 7
+                                             9,  8,  7,  6, // 6
+                                             8,  7,  6,  5, // 5
+                                             7, 6, 5,4, // 4
+                                             6,5,4,3,  // 3
+                                             5,4,3,2,  // 2
+                                             4,3,2,1,  // 1
+                                             3,2,1,0); // 0
+
+    const __m512i idx2 =   _mm512_set_epi16(18, 17, 16, 15, // 15
+         17, 16, 15, 14, // 14
+         16, 15, 14, 13, // 13
+         15, 14, 13, 12, // 12
+         14, 13, 12, 11, // 11
+         13, 12, 11, 10, // 10
+         12, 11, 10,  9, // 9
+         11, 10,  9,  8); // 8
+
+
+    int n16 = out2 / 16;
+    int tail_out = out2 & 0xF;
+    const __mmask16 mask_tail_out = 0xFFFF >> (16-tail_out);
+
+    int k4 = _k2 / 4;
+    int tail_k = _k2 & 3;
+
+    int32_t offset_for_tail(0);
+    if(tail_k == 1) {
+        offset_for_tail = 0xFF;
+    } else if (tail_k == 2) {
+       offset_for_tail = 0xFFFF;
+    } else {
+        offset_for_tail = 0xFFFFFF;
+    }
+
+    size_t count = 0;
+
+    for(int irow = 0; irow < out1; ++irow) {
+        for(int in16 = 0; in16 < n16; ++in16) {
+
+            for(int kk1 = 0; kk1 < _k1; kk1++) {
+                int i = 0;
+                for(int j = 0; j < k4; ++j, i+=4) {
+                    count++;
+                }
+                if (tail_k) {
+                    count++;
+                }
+            }
+        }
+        if (tail_out) {
+            for(int kk1 = 0; kk1 < _k1; kk1++) {
+                int i = 0;
+                for(int j = 0; j < k4; ++j, i+=4) {
+                    count++;
+                }
+                if (tail_k) {
+                    count++;
+                }
+            }
+        }
+    }
+
+    return count * 64;
+}
+
+
+void vnni_conv_fill_buffer(const uint8_t* frame, const int8_t* kernel, int32_t* res, int in1, int in2, int _k1, int _k2, uint8_t* buffer) {
+    int out1 = in1 - _k1 + 1;
+    int out2 = in2 - _k2 + 1;
+
+
+    const __m512i idx1 = _mm512_set_epi16( 10,  9,  8,  7, // 7
+                                             9,  8,  7,  6, // 6
+                                             8,  7,  6,  5, // 5
+                                             7, 6, 5,4, // 4
+                                             6,5,4,3,  // 3
+                                             5,4,3,2,  // 2
+                                             4,3,2,1,  // 1
+                                             3,2,1,0); // 0
+
+    const __m512i idx2 =   _mm512_set_epi16(18, 17, 16, 15, // 15
+         17, 16, 15, 14, // 14
+         16, 15, 14, 13, // 13
+         15, 14, 13, 12, // 12
+         14, 13, 12, 11, // 11
+         13, 12, 11, 10, // 10
+         12, 11, 10,  9, // 9
+         11, 10,  9,  8); // 8
+
+
+    int n16 = out2 / 16;
+    int tail_out = out2 & 0xF;
+    const __mmask16 mask_tail_out = 0xFFFF >> (16-tail_out);
+
+    int k4 = _k2 / 4;
+    int tail_k = _k2 & 3;
+
+    int32_t offset_for_tail(0);
+    if(tail_k == 1) {
+        offset_for_tail = 0xFF;
+    } else if (tail_k == 2) {
+       offset_for_tail = 0xFFFF;
+    } else {
+        offset_for_tail = 0xFFFFFF;
+    }
+
+    size_t count = 0;
+
+    for(int irow = 0; irow < out1; ++irow) {
+        for(int in16 = 0; in16 < n16; ++in16) {
+            for(int kk1 = 0; kk1 < _k1; kk1++) {
+                int i = 0;
+                for(int j = 0; j < k4; ++j, i+=4) {
+                    __m512i x = _mm512_load_permutexvar_epi8_2idx(frame + (irow + kk1) * in2 + i + in16*16, idx1, idx2);
+                    _mm512_storeu_epi32(buffer + 64 * count, x);
+                    count++;
+                }
+                if (tail_k) {
+                    __m512i x = _mm512_load_permutexvar_epi8_2idx(frame + (irow + kk1) * in2 + i + in16*16, idx1, idx2);
+                    _mm512_storeu_epi32(buffer + 64 * count, x);
+                    count++;
+                }
+            }
+        }
+        if (tail_out) {
+            for(int kk1 = 0; kk1 < _k1; kk1++) {
+                int i = 0;
+                for(int j = 0; j < k4; ++j, i+=4) {
+                    __m512i x = _mm512_load_permutexvar_epi8_2idx(frame + (irow + kk1) * in2 + i + n16*16, idx1, idx2);
+                    _mm512_storeu_epi32(buffer + 64 * count, x);
+                    count++;
+                }
+                if (tail_k) {
+                    __m512i x = _mm512_load_permutexvar_epi8_2idx(frame + (irow + kk1) * in2 + i + n16*16, idx1, idx2);
+                    _mm512_storeu_epi32(buffer + 64 * count, x);
+                    count++;
+                }
+            }
+        }
+    }
+}
+
+void vnni_conv_with_buffer(const uint8_t* buffer, const int8_t* kernel, int32_t* res, int in1, int in2, int _k1, int _k2) {
+    int out1 = in1 - _k1 + 1;
+    int out2 = in2 - _k2 + 1;
+
+
+    const __m512i idx1 = _mm512_set_epi16( 10,  9,  8,  7, // 7
+                                             9,  8,  7,  6, // 6
+                                             8,  7,  6,  5, // 5
+                                             7, 6, 5,4, // 4
+                                             6,5,4,3,  // 3
+                                             5,4,3,2,  // 2
+                                             4,3,2,1,  // 1
+                                             3,2,1,0); // 0
+
+    const __m512i idx2 =   _mm512_set_epi16(18, 17, 16, 15, // 15
+         17, 16, 15, 14, // 14
+         16, 15, 14, 13, // 13
+         15, 14, 13, 12, // 12
+         14, 13, 12, 11, // 11
+         13, 12, 11, 10, // 10
+         12, 11, 10,  9, // 9
+         11, 10,  9,  8); // 8
+
+
+    int n16 = out2 / 16;
+    int tail_out = out2 & 0xF;
+    const __mmask16 mask_tail_out = 0xFFFF >> (16-tail_out);
+
+    int k4 = _k2 / 4;
+    int tail_k = _k2 & 3;
+
+    int32_t offset_for_tail(0);
+    if(tail_k == 1) {
+        offset_for_tail = 0xFF;
+    } else if (tail_k == 2) {
+       offset_for_tail = 0xFFFF;
+    } else {
+        offset_for_tail = 0xFFFFFF;
+    }
+
+    size_t count = 0;
+
+    for(int irow = 0; irow < out1; ++irow) {
+        for(int in16 = 0; in16 < n16; ++in16) {
+            int32_t* p = res + irow * out2 + in16*16;
+            __m512i r = _mm512_set1_epi32(0);
+
+            for(int kk1 = 0; kk1 < _k1; kk1++) {
+                int i = 0;
+                for(int j = 0; j < k4; ++j, i+=4) {
+                    __m512i x = _mm512_load_epi32(buffer + 64 * count);
+                    count++;
+                    __m512i k = _mm512_set1_epi32(*((int32_t*)(kernel + kk1*_k2 + i))); // broadcast [4 x 8bit] to 512bit register
+                    r = dpbusd(r, x, k);
+                }
+                if (tail_k) {
+                    __m512i x = _mm512_load_epi32(buffer + 64 * count);
+                    count++;
+                    int32_t k32 = *((int32_t*)(kernel + kk1*_k2 + i)) & offset_for_tail;
+                     __m512i k = _mm512_set1_epi32(k32);
+                    r = dpbusd(r, x, k);
+                }
+            }
+            _mm512_storeu_epi32(p, r);
+        }
+        if (tail_out) {
+            int32_t* p = res + irow * out2 + (n16)*16;
+            __m512i r = _mm512_set1_epi32(0);
+
+            for(int kk1 = 0; kk1 < _k1; kk1++) {
+                int i = 0;
+                for(int j = 0; j < k4; ++j, i+=4) {
+                    __m512i x = _mm512_load_epi32(buffer + 64 * count);
+                    count++;
+                    __m512i k = _mm512_set1_epi32(*((int32_t*)(kernel + kk1*_k2 + i))); // broadcast [4 x 8bit] to 512bit register
+                    r = dpbusd(r, x, k);
+                }
+                if (tail_k) {
+                    __m512i x = _mm512_load_epi32(buffer + 64 * count);
+                    count++;
+                    int32_t k32 = *((int32_t*)(kernel + kk1*_k2 + i)) & offset_for_tail;
+                     __m512i k = _mm512_set1_epi32(k32);
+                    r = dpbusd(r, x, k);
+                }
+            }
+            _mm512_mask_storeu_epi32(p, mask_tail_out, r);
+        }
+    }
+}
+
+
+template<int _k1, int _k2, int k4, int tail_k>
+void vnni_conv_with_buffer_jit(const uint8_t* buffer, const int8_t* kernel, int32_t* res, int in1, int in2) {
     int out1 = in1 - _k1 + 1;
     int out2 = in2 - _k2 + 1;
 
@@ -243,6 +526,148 @@ const __m512i idx2 =   _mm512_set_epi16(18, 17, 16, 15, // 15
     int tail_out = out2 & 0xF;
     const __mmask16 mask_tail_out = 0xFFFF >> (16-tail_out);
 
+    // int k4 = _k2 / 4;
+    // int tail_k = _k2 & 3;
+
+    int32_t offset_for_tail(0);
+    if(tail_k == 1) {
+        offset_for_tail = 0xFF;
+    } else if (tail_k == 2) {
+       offset_for_tail = 0xFFFF;
+    } else {
+        offset_for_tail = 0xFFFFFF;
+    }
+
+    size_t count = 0;
+
+    for(int irow = 0; irow < out1; ++irow) {
+        for(int in16 = 0; in16 < n16; ++in16) {
+            int32_t* p = res + irow * out2 + in16*16;
+            __m512i r = _mm512_set1_epi32(0);
+
+            for(int kk1 = 0; kk1 < _k1; kk1++) {
+                int i = 0;
+                #pragma unroll(k4)
+                for(int j = 0; j < k4; ++j) {
+                    __m512i x = _mm512_load_epi32(buffer + 64 * count);
+                    count++;
+                    __m512i k = _mm512_set1_epi32(*((int32_t*)(kernel + kk1*_k2 + i))); // broadcast [4 x 8bit] to 512bit register
+                    r = dpbusd(r, x, k);
+                    i+=4;
+                }
+                if (tail_k) {
+                    __m512i x = _mm512_load_epi32(buffer + 64 * count);
+                    count++;
+                    int32_t k32 = *((int32_t*)(kernel + kk1*_k2 + i)) & offset_for_tail;
+                     __m512i k = _mm512_set1_epi32(k32);
+                    r = dpbusd(r, x, k);
+                }
+            }
+            _mm512_storeu_epi32(p, r);
+        }
+        if (tail_out) {
+            int32_t* p = res + irow * out2 + (n16)*16;
+            __m512i r = _mm512_set1_epi32(0);
+
+            for(int kk1 = 0; kk1 < _k1; kk1++) {
+                int i = 0;
+                #pragma unroll(k4)
+                for(int j = 0; j < k4; ++j) {
+                    __m512i x = _mm512_load_epi32(buffer + 64 * count);
+                    count++;
+                    __m512i k = _mm512_set1_epi32(*((int32_t*)(kernel + kk1*_k2 + i))); // broadcast [4 x 8bit] to 512bit register
+                    r = dpbusd(r, x, k);
+                    i+=4;
+                }
+                if (tail_k) {
+                    __m512i x = _mm512_load_epi32(buffer + 64 * count);
+                    count++;
+                    int32_t k32 = *((int32_t*)(kernel + kk1*_k2 + i)) & offset_for_tail;
+                     __m512i k = _mm512_set1_epi32(k32);
+                    r = dpbusd(r, x, k);
+                }
+            }
+            _mm512_mask_storeu_epi32(p, mask_tail_out, r);
+        }
+    }
+}
+
+
+void vnni_conv_buffer(const uint8_t* buffer, const int8_t* kernel, int32_t* res, int in1, int in2, int _k1, int _k2) {
+    // int k4 = _k2 / 4;
+    // int tail_k = _k2 & 3;
+
+    // if(k4 == 1 && tail_k) vnni_conv_k1_1(frame, kernel, res, in1, in2, _k1, _k2);
+    // else if(k4 == 0 && tail_k) vnni_conv_k0_1(frame, kernel, res, in1, in2, _k1, _k2);
+    // else vnni_conv_common(frame, kernel, res, in1, in2, _k1, _k2);
+
+    if (_k2 == _k1) {
+        switch(_k2) {
+            case 2:
+                vnni_conv_with_buffer_jit<2, 2, 0, 2>(buffer, kernel, res, in1, in2);
+                break;
+            case 3:
+                vnni_conv_with_buffer_jit<3, 3, 0, 3>(buffer, kernel, res, in1, in2);
+                break;
+            case 4:
+                vnni_conv_with_buffer_jit<4, 4, 1, 0>(buffer, kernel, res, in1, in2);
+                break;
+            case 5:
+                vnni_conv_with_buffer_jit<5, 5, 1, 1>(buffer, kernel, res, in1, in2);
+                break;
+            case 6:
+                vnni_conv_with_buffer_jit<6, 6, 1, 2>(buffer, kernel, res, in1, in2);
+                break;
+            case 7:
+                vnni_conv_with_buffer_jit<7, 7, 1, 3>(buffer, kernel, res, in1, in2);
+                break;
+            case 8:
+                vnni_conv_with_buffer_jit<8, 8, 2, 0>(buffer, kernel, res, in1, in2);
+                break;
+            default:
+                vnni_conv_with_buffer(buffer, kernel, res, in1, in2, _k1, _k2);
+                break;
+        };
+    } else {
+        vnni_conv_with_buffer(buffer, kernel, res, in1, in2, _k1, _k2);
+    }
+
+
+
+
+
+    // vnni_conv_common(frame, kernel, res, in1, in2, _k1, _k2);
+}
+
+
+void vnni_conv_common(const uint8_t* frame, const int8_t* kernel, int32_t* res, int in1, int in2, int _k1, int _k2) {
+    int out1 = in1 - _k1 + 1;
+    int out2 = in2 - _k2 + 1;
+
+
+    const __m512i idx1 = _mm512_set_epi16( 10,  9,  8,  7, // 7
+                                             9,  8,  7,  6, // 6
+                                             8,  7,  6,  5, // 5
+                                             7, 6, 5,4, // 4
+                                             6,5,4,3,  // 3
+                                             5,4,3,2,  // 2
+                                             4,3,2,1,  // 1
+                                             3,2,1,0); // 0
+
+    const __m512i idx2 =   _mm512_set_epi16(18, 17, 16, 15, // 15
+         17, 16, 15, 14, // 14
+         16, 15, 14, 13, // 13
+         15, 14, 13, 12, // 12
+         14, 13, 12, 11, // 11
+         13, 12, 11, 10, // 10
+         12, 11, 10,  9, // 9
+         11, 10,  9,  8); // 8
+
+
+    int n16 = out2 / 16;
+    int tail_out = out2 & 0xF;
+    const __mmask16 mask_tail_out = 0xFFFF >> (16-tail_out);
+
     int k4 = _k2 / 4;
     int tail_k = _k2 & 3;
 
@@ -263,12 +688,12 @@ const __m512i idx2 =   _mm512_set_epi16(18, 17, 16, 15, // 15
             for(int kk1 = 0; kk1 < _k1; kk1++) {
                 int i = 0;
                 for(int j = 0; j < k4; ++j, i+=4) {
-                    __m512i x = _mm512_loadu_permutexvar_epi8_2idx(frame + (irow + kk1) * in2 + i + in16*16, idx1, idx2);
+                    __m512i x = _mm512_load_permutexvar_epi8_2idx(frame + (irow + kk1) * in2 + i + in16*16, idx1, idx2);
                     __m512i k = _mm512_set1_epi32(*((int32_t*)(kernel + kk1*_k2 + i))); // broadcast [4 x 8bit] to 512bit register
                     r = dpbusd(r, x, k);
                 }
                 if (tail_k) {
-                    __m512i x = _mm512_loadu_permutexvar_epi8_2idx(frame + (irow + kk1) * in2 + i + in16*16, idx1, idx2);
+                    __m512i x = _mm512_load_permutexvar_epi8_2idx(frame + (irow + kk1) * in2 + i + in16*16, idx1, idx2);
                     int32_t k32 = *((int32_t*)(kernel + kk1*_k2 + i)) & offset_for_tail;
                      __m512i k = _mm512_set1_epi32(k32);
                     r = dpbusd(r, x, k);
@@ -283,12 +708,12 @@ const __m512i idx2 =   _mm512_set_epi16(18, 17, 16, 15, // 15
             for(int kk1 = 0; kk1 < _k1; kk1++) {
                 int i = 0;
                 for(int j = 0; j < k4; ++j, i+=4) {
-                    __m512i x = _mm512_loadu_permutexvar_epi8_2idx(frame + (irow + kk1) * in2 + i + n16*16, idx1, idx2);
+                    __m512i x = _mm512_load_permutexvar_epi8_2idx(frame + (irow + kk1) * in2 + i + n16*16, idx1, idx2);
                     __m512i k = _mm512_set1_epi32(*((int32_t*)(kernel + kk1*_k2 + i))); // broadcast [4 x 8bit] to 512bit register
                     r = dpbusd(r, x, k);
                 }
                 if (tail_k) {
-                    __m512i x = _mm512_loadu_permutexvar_epi8_2idx(frame + (irow + kk1) * in2 + i + n16*16, idx1, idx2);
+                    __m512i x = _mm512_load_permutexvar_epi8_2idx(frame + (irow + kk1) * in2 + i + n16*16, idx1, idx2);
                     int32_t k32 = *((int32_t*)(kernel + kk1*_k2 + i)) & offset_for_tail;
                      __m512i k = _mm512_set1_epi32(k32);
                     r = dpbusd(r, x, k);
@@ -349,13 +774,13 @@ const __m512i idx2 =   _mm512_set_epi16(18, 17, 16, 15, // 15
                 int i = 0;
                 #pragma unroll(k4)
                 for(int j = 0; j < k4; ++j) {
-                    __m512i x = _mm512_loadu_permutexvar_epi8_2idx(frame + (irow + kk1) * in2 + i + in16*16, idx1, idx2);
+                    __m512i x = _mm512_load_permutexvar_epi8_2idx(frame + (irow + kk1) * in2 + i + in16*16, idx1, idx2);
                     __m512i k = _mm512_set1_epi32(*((int32_t*)(kernel + kk1*_k2 + i))); // broadcast [4 x 8bit] to 512bit register
                     r = dpbusd(r, x, k);
                     i+=4;
                 }
                 if (tail_k) {
-                    __m512i x = _mm512_loadu_permutexvar_epi8_2idx(frame + (irow + kk1) * in2 + i + in16*16, idx1, idx2);
+                    __m512i x = _mm512_load_permutexvar_epi8_2idx(frame + (irow + kk1) * in2 + i + in16*16, idx1, idx2);
                     int32_t k32 = *((int32_t*)(kernel + kk1*_k2 + i)) & offset_for_tail;
                      __m512i k = _mm512_set1_epi32(k32);
                     r = dpbusd(r, x, k);
@@ -371,13 +796,13 @@ const __m512i idx2 =   _mm512_set_epi16(18, 17, 16, 15, // 15
                 int i = 0;
                 #pragma unroll(k4)
                 for(int j = 0; j < k4; ++j) {
-                    __m512i x = _mm512_loadu_permutexvar_epi8_2idx(frame + (irow + kk1) * in2 + i + n16*16, idx1, idx2);
+                    __m512i x = _mm512_load_permutexvar_epi8_2idx(frame + (irow + kk1) * in2 + i + n16*16, idx1, idx2);
                     __m512i k = _mm512_set1_epi32(*((int32_t*)(kernel + kk1*_k2 + i))); // broadcast [4 x 8bit] to 512bit register
                     r = dpbusd(r, x, k);
                     i+=4;
                 }
                 if (tail_k) {
-                    __m512i x = _mm512_loadu_permutexvar_epi8_2idx(frame + (irow + kk1) * in2 + i + n16*16, idx1, idx2);
+                    __m512i x = _mm512_load_permutexvar_epi8_2idx(frame + (irow + kk1) * in2 + i + n16*16, idx1, idx2);
                     int32_t k32 = *((int32_t*)(kernel + kk1*_k2 + i)) & offset_for_tail;
                      __m512i k = _mm512_set1_epi32(k32);
                     r = dpbusd(r, x, k);
@@ -469,7 +894,7 @@ const __m512i idx2 =   _mm512_set_epi16(18, 17, 16, 15, // 15
 
 
 
-    // __m512i x = _mm256_loadu_epi8(frame + (irow + kk1) * in2 + i + in16*16);
+    // __m512i x = _mm256_load_epi8(frame + (irow + kk1) * in2 + i + in16*16);
     //x = permutexvar_epi8(idx, x);
 
     for(int irow = 0; irow < out1; ++irow) {
@@ -478,11 +903,11 @@ const __m512i idx2 =   _mm512_set_epi16(18, 17, 16, 15, // 15
             __m512i r = _mm512_set1_epi32(0);
             for(int kk1 = 0; kk1 < _k1; kk1++) {
                 int i = 0;
-                __m512i x = _mm512_loadu_permutexvar_epi8_2idx(frame + (irow + kk1) * in2 + i + in16*16, idx1, idx2);
+                __m512i x = _mm512_load_permutexvar_epi8_2idx(frame + (irow + kk1) * in2 + i + in16*16, idx1, idx2);
                 __m512i k = _mm512_set1_epi32(*((int32_t*)(kernel + kk1*_k2 + i))); // broadcast [4 x 8bit] to 512bit register
                 r = dpbusd(r, x, k);
                 i +=4;
-                x = _mm512_loadu_permutexvar_epi8_2idx(frame + (irow + kk1) * in2 + i + in16*16, idx1, idx2);
+                x = _mm512_load_permutexvar_epi8_2idx(frame + (irow + kk1) * in2 + i + in16*16, idx1, idx2);
 
                 int32_t k32 = *((int32_t*)(kernel + kk1*_k2 + i)) & offset_for_tail;
                 k = _mm512_set1_epi32(k32);
@@ -492,16 +917,16 @@ const __m512i idx2 =   _mm512_set_epi16(18, 17, 16, 15, // 15
         }
         if (tail_out) {
             int32_t* p = res + irow * out2 + (n16)*16;
-            __m512i r = _mm512_set1_epi32(0);// = _mm512_loadu_epi32(p);
+            __m512i r = _mm512_set1_epi32(0);// = _mm512_load_epi32(p);
             for(int kk1 = 0; kk1 < _k1; kk1++) {
                 int i = 0;
                 // for(int j = 0; j < k4; ++j, i+=4) {
-                __m512i x = _mm512_loadu_permutexvar_epi8_2idx(frame + (irow + kk1) * in2 + i + n16*16, idx1, idx2);
+                __m512i x = _mm512_load_permutexvar_epi8_2idx(frame + (irow + kk1) * in2 + i + n16*16, idx1, idx2);
                 __m512i k = _mm512_set1_epi32(*((int32_t*)(kernel + kk1*_k2 + i))); // broadcast [4 x 8bit] to 512bit register
                 r = dpbusd(r, x, k);
                 // }
                 i+=4;
-                x = _mm512_loadu_permutexvar_epi8_2idx(frame + (irow + kk1) * in2 + i + n16*16, idx1, idx2);
+                x = _mm512_load_permutexvar_epi8_2idx(frame + (irow + kk1) * in2 + i + n16*16, idx1, idx2);
                 int32_t k32 = *((int32_t*)(kernel + kk1*_k2 + i)) & offset_for_tail;
                 k = _mm512_set1_epi32(k32);
                 r = dpbusd(r, x, k);
@@ -593,7 +1018,7 @@ const __m512i idx2 =   _mm512_set_epi16(18, 17, 16, 15, // 15
 
 
 
-    // __m512i x = _mm256_loadu_epi8(frame + (irow + kk1) * in2 + i + in16*16);
+    // __m512i x = _mm256_load_epi8(frame + (irow + kk1) * in2 + i + in16*16);
     //x = permutexvar_epi8(idx, x);
 
     for(int irow = 0; irow < out1; ++irow) {
@@ -602,7 +1027,7 @@ const __m512i idx2 =   _mm512_set_epi16(18, 17, 16, 15, // 15
             __m512i r = _mm512_set1_epi32(0);
             for(int kk1 = 0; kk1 < _k1; kk1++) {
                 int i = 0;
-                __m512i x = _mm512_loadu_permutexvar_epi8_2idx(frame + (irow + kk1) * in2 + i + in16*16, idx1, idx2);
+                __m512i x = _mm512_load_permutexvar_epi8_2idx(frame + (irow + kk1) * in2 + i + in16*16, idx1, idx2);
 
                 int32_t k32 = *((int32_t*)(kernel + kk1*_k2 + i)) & offset_for_tail;
                  __m512i k = _mm512_set1_epi32(k32);
@@ -612,10 +1037,10 @@ const __m512i idx2 =   _mm512_set_epi16(18, 17, 16, 15, // 15
         }
         if (tail_out) {
             int32_t* p = res + irow * out2 + (n16)*16;
-            __m512i r = _mm512_set1_epi32(0);// = _mm512_loadu_epi32(p);
+            __m512i r = _mm512_set1_epi32(0);// = _mm512_load_epi32(p);
             for(int kk1 = 0; kk1 < _k1; kk1++) {
                 int i = 0;
-                __m512i x = _mm512_loadu_permutexvar_epi8_2idx(frame + (irow + kk1) * in2 + i + n16*16, idx1, idx2);
+                __m512i x = _mm512_load_permutexvar_epi8_2idx(frame + (irow + kk1) * in2 + i + n16*16, idx1, idx2);
                 int32_t k32 = *((int32_t*)(kernel + kk1*_k2 + i)) & offset_for_tail;
                  __m512i k = _mm512_set1_epi32(k32);
                 r = dpbusd(r, x, k);
@@ -780,15 +1205,15 @@ void _conv_avx512_if(const float* frame, const float* kernel, float* res, size_t
                     for (; j < icol_end - 15; j+=16) {
                         float* out = res + (i-irow_begin) * out2 + (j-icol_begin);
 
-                        __m512 x = _mm512_loadu_ps(frame + i * in2 + j);
-                        __m512 r = _mm512_loadu_ps(out);
+                        __m512 x = _mm512_load_ps(frame + i * in2 + j);
+                        __m512 r = _mm512_load_ps(out);
                         r = _mm512_fmadd_ps(x, k, r);
                         _mm512_storeu_ps(out, r);
                     }
                     {
                         float* out = res + (i-irow_begin) * out2 + (j-icol_begin);
-                        __m512 x = _mm512_maskz_loadu_ps(mask_tail, frame + i * in2 + j);
-                        __m512 r = _mm512_maskz_loadu_ps(mask_tail, out);
+                        __m512 x = _mm512_maskz_load_ps(mask_tail, frame + i * in2 + j);
+                        __m512 r = _mm512_maskz_load_ps(mask_tail, out);
                         r = _mm512_maskz_fmadd_ps(mask_tail, x, k, r);
                         _mm512_mask_storeu_ps(out, mask_tail, r);
                     }
@@ -799,8 +1224,8 @@ void _conv_avx512_if(const float* frame, const float* kernel, float* res, size_t
                     for (; j < icol_end - 15; j+=16) {
                         float* out = res + (i-irow_begin) * out2 + (j-icol_begin);
 
-                        __m512 x = _mm512_loadu_ps(frame + i * in2 + j);
-                        __m512 r = _mm512_loadu_ps(out);
+                        __m512 x = _mm512_load_ps(frame + i * in2 + j);
+                        __m512 r = _mm512_load_ps(out);
                         r = _mm512_fmadd_ps(x, k, r);
                         _mm512_storeu_ps(out, r);
                     }
@@ -810,8 +1235,8 @@ void _conv_avx512_if(const float* frame, const float* kernel, float* res, size_t
                     int j = icol_begin;
                     {
                         float* out = res + (i-irow_begin) * out2 + (j-icol_begin);
-                        __m512 x = _mm512_maskz_loadu_ps(mask_tail, frame + i * in2 + j);
-                        __m512 r = _mm512_maskz_loadu_ps(mask_tail, out);
+                        __m512 x = _mm512_maskz_load_ps(mask_tail, frame + i * in2 + j);
+                        __m512 r = _mm512_maskz_load_ps(mask_tail, out);
                         r = _mm512_maskz_fmadd_ps(mask_tail, x, k, r);
                         _mm512_mask_storeu_ps(out, mask_tail, r);
                     }
@@ -847,15 +1272,15 @@ void _conv_avx512(const float* frame, const float* kernel, float* res, int in1, 
                     int j = icol_begin;
                     for (; j < icol_end - 15; j+=16) {
                         float* out = res + (i-irow_begin) * out2 + (j-icol_begin);
-                        __m512 x = _mm512_loadu_ps(frame + i * in2 + j);
-                        __m512 r = _mm512_loadu_ps(out);
+                        __m512 x = _mm512_load_ps(frame + i * in2 + j);
+                        __m512 r = _mm512_load_ps(out);
                         r = _mm512_fmadd_ps(x, k, r);
                         _mm512_storeu_ps(out, r);
                     }
                     {
                         float* out = res + (i-irow_begin) * out2 + (j-icol_begin);
-                        __m512 x = _mm512_maskz_loadu_ps(mask_tail, frame + i * in2 + j);
-                        __m512 r = _mm512_maskz_loadu_ps(mask_tail, out);
+                        __m512 x = _mm512_maskz_load_ps(mask_tail, frame + i * in2 + j);
+                        __m512 r = _mm512_maskz_load_ps(mask_tail, out);
                         r = _mm512_maskz_fmadd_ps(mask_tail, x, k, r);
                         _mm512_mask_storeu_ps(out, mask_tail, r);
                     }
@@ -865,13 +1290,13 @@ void _conv_avx512(const float* frame, const float* kernel, float* res, int in1, 
                     int j = icol_begin;
                     for (; j < icol_end - 15; j+=16) {
                         float* out = res + (i-irow_begin) * out2 + (j-icol_begin);
-                        __m512 x = _mm512_loadu_ps(frame + i * in2 + j);
+                        __m512 x = _mm512_load_ps(frame + i * in2 + j);
                         __m512 r = _mm512_mul_ps(x, k);
                         _mm512_storeu_ps(out, r);
                     }
                     {
                         float* out = res + (i-irow_begin) * out2 + (j-icol_begin);
-                        __m512 x = _mm512_maskz_loadu_ps(mask_tail, frame + i * in2 + j);
+                        __m512 x = _mm512_maskz_load_ps(mask_tail, frame + i * in2 + j);
                         __m512 r = _mm512_maskz_mul_ps(mask_tail, x, k);
                         _mm512_mask_storeu_ps(out, mask_tail, r);
                     }
@@ -906,15 +1331,15 @@ void _conv_avx512_null(const float* frame, const float* kernel, float* res, int 
                 int j = icol_begin;
                 for (; j < icol_end - 15; j+=16) {
                     float* out = res + (i-irow_begin) * out2 + (j-icol_begin);
-                    __m512 x = _mm512_loadu_ps(frame + i * in2 + j);
-                    __m512 r = _mm512_loadu_ps(out);
+                    __m512 x = _mm512_load_ps(frame + i * in2 + j);
+                    __m512 r = _mm512_load_ps(out);
                     r = _mm512_fmadd_ps(x, k, r);
                     _mm512_storeu_ps(out, r);
                 }
                 {
                     float* out = res + (i-irow_begin) * out2 + (j-icol_begin);
-                    __m512 x = _mm512_maskz_loadu_ps(mask_tail, frame + i * in2 + j);
-                    __m512 r = _mm512_maskz_loadu_ps(mask_tail, out);
+                    __m512 x = _mm512_maskz_load_ps(mask_tail, frame + i * in2 + j);
+                    __m512 r = _mm512_maskz_load_ps(mask_tail, out);
                     r = _mm512_maskz_fmadd_ps(mask_tail, x, k, r);
                     _mm512_mask_storeu_ps(out, mask_tail, r);
                 }

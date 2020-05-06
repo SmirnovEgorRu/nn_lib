@@ -29,7 +29,6 @@ set(TBBROOT $ENV{TBBROOT})
 set(MKLROOT $ENV{MKLROOT})
 message(TBBROOT=${TBBROOT})
 message(MKLROOT=${MKLROOT})
-include_directories(${TBBROOT}/include/tbb)
 
 # Add include dirs
 include_directories("../../include"

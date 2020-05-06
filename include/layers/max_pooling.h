@@ -3,8 +3,6 @@
 #define __MAX_POOLING_LAYER_H__
 
 #include "layer_base.h"
-#include "initializers.h"
-#include "blas.h"
 
 template<typename InType, typename OutType>
 class MaxPooling: public LayerBase<InType, OutType> {
